@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AlemEdu Sovereign Platform</title>
+    <!-- Fonts -->
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Outfit:wght@400;600;700&display=swap"
+        rel="stylesheet">
+    <!-- Firebase JS (Compat for generic HTML) -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
+
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="css/styles.css">
+
+    <!-- Markdown & MathJax support -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script>
+        MathJax = {
+            tex: { inlineMath: [['\\(', '\\)']], displayMath: [['\\[', '\\]']] }
+        };
+    </script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+</head>
+
+<body>
+    <div class="bg-orb orb-1"></div>
+    <div class="bg-orb orb-2"></div>
+
+    <div id="app-container">
+
+        <!-- ======================= -->
+        <!--  AUTHENTICATION VIEW   -->
+        <!-- ======================= -->
+        <div id="auth-view" class="view-section active">
+            <div class="auth-card glass-panel">
+                <div class="auth-header">
+                    <h1>AlemEdu</h1>
+                    <p>Образовательная платформа будущего</p>
+                </div>
+
+                <div class="auth-tabs">
+                    <button class="tab-btn active" data-mode="login">Вход</button>
+                    <button class="tab-btn" data-mode="register">Регистрация</button>
+                </div>
+
+                <form id="auth-form">
+                    <div id="register-fields" style="display: none;">
+                        <div class="form-group">
+                            <label>Ваше имя</label>
+                            <input type="text" id="display-name" placeholder="Жандос Сарсенов">
+                        </div>
+                        <div class="form-group">
+                            <div class="role-switch-container">
+                                <label>Я:</label>
+                                <select id="role-select" style="width: 70%; padding: 8px;">
+                                    <option value="student">Студент</option>
+                                    <option value="teacher">Учитель</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-group" id="class-code-group">
+                            <label>Код класса</label>
+                            <input type="text" id="class-code" placeholder="Например: ALEM-10A">
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>E-mail</label>
+                        <input type="email" id="email" required placeholder="example@alem.ai">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Пароль</label>
+                        <input type="password" id="password" required placeholder="••••••••">
+                    </div>
+
+                    <div class="error-text" id="error-text"></div>
+
+                    <button type="submit" class="btn-primary" id="submit-btn">Войти / Sign In</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- ======================= -->
+        <!--   TEACHER DASHBOARD     -->
+        <!-- ======================= -->
+        <div id="teacher-view" class="view-section dashboard-layout glass-panel">
+            <div class="dash-header">
+                <div class="dash-logo">✨ AlemEdu <span>Teacher</span></div>
+
+                <!-- Center Navigation -->
+                <div class="dash-nav teacher-nav">
+                    <button class="nav-btn active" data-view="t-view-workspace">🤖 ИИ & Задачи</button>
+                    <button class="nav-btn" data-view="t-view-classes">👥 Мои Классы</button>
+                    <button class="nav-btn" data-view="t-view-exams">📑 Экзамены</button>
+                </div>
+
+                <div class="user-profile">
+                    <span id="t-user-name">Преподаватель</span>
+                    <button id="t-logout" class="logout-btn">Выйти</button>
+                </div>
+            </div>
+
+            <div class="dash-body">
+
+                <!-- ==========================
+                     SUB-VIEW 1: WORKSPACE 
+                     ========================== -->
+                <div id="t-view-workspace" class="teacher-subview active">
+                    <div class="teacher-workspace" style="display: flex; width: 100%; height: 100%;">
+                        <!-- Chat Panel (AlemLLM) -->
+                        <div class="chat-panel">
+                            <div class="chat-messages" id="chatbox">
+                                <!-- Messages dynamically appear here -->
+                            </div>
+                            <div class="chat-input-area">
+                                <textarea id="userInput" placeholder="Напишите задачу для генерации..."
+                                    rows="1"></textarea>
+                                <button id="sendBtn" class="send-btn">
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                        stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <line x1="22" y1="2" x2="11" y2="13"></line>
+                                        <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Tabbed Right Panel -->
+                        <div class="task-creation-panel">
+                            <!-- Tab Bar -->
+                            <div
+                                style="display:flex;gap:4px;margin-bottom:16px;background:rgba(0,0,0,0.2);padding:4px;border-radius:12px;">
+                                <button id="tab-btn-task" onclick="switchTeacherTab('task')"
+                                    style="flex:1;padding:8px;border:none;border-radius:9px;background:rgba(99,102,241,0.8);color:white;font-weight:600;cursor:pointer;font-size:0.85rem;transition:all 0.2s;">📝
+                                    Задача</button>
+                                <button id="tab-btn-results" onclick="switchTeacherTab('results')"
+                                    style="flex:1;padding:8px;border:none;border-radius:9px;background:transparent;color:#94a3b8;font-weight:600;cursor:pointer;font-size:0.85rem;transition:all 0.2s;">📊
+                                    Все результаты</button>
+                            </div>
+
+                            <!-- Tab: Task Creation -->
+                            <div id="tab-task" class="teacher-tab">
+                                <div class="task-form-panel">
+                                    <h3>Создать задачу 📝</h3>
+                                    <div class="form-group">
+                                        <label>Текст задачи (заполняется ИИ)</label>
+                                        <textarea id="task-content" rows="10"
+                                            placeholder="Здесь будет сгенерированная задача..."
+                                            style="width: 100%; border-radius: 8px; padding: 12px; background: rgba(0,0,0,0.3); color: white; border: 1px solid rgba(255,255,255,0.2);"></textarea>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Отправить классу (Код)</label>
+                                        <input type="text" id="task-class-code" placeholder="Например: ALEM-10A"
+                                            value="ALEM-101">
+                                    </div>
+                                    <button id="send-task-btn" class="btn-primary">Отправить в класс</button>
+                                </div>
+                            </div>
+
+                            <!-- Tab: Student Results -->
+                            <div id="tab-results" class="teacher-tab" style="display:none;">
+                                <div class="task-form-panel">
+                                    <h3>📊 Лента результатов</h3>
+                                    <div class="form-group">
+                                        <label>Код класса для просмотра</label>
+                                        <div style="display: flex; gap: 8px;">
+                                            <input type="text" id="results-class-code" placeholder="Например: ALEM-10A"
+                                                value="ALEM-101">
+                                            <button id="load-results-btn" class="btn-primary"
+                                                style="white-space: nowrap; padding: 0 16px; margin-top:0;">Загрузить</button>
+                                        </div>
+                                    </div>
+                                    <div id="submissions-list"
+                                        style="margin-top: 12px; max-height: 480px; overflow-y: auto;"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ==========================
+                     SUB-VIEW 2: CLASS MANAGEMENT
+                     ========================== -->
+                <div id="t-view-classes" class="teacher-subview"
+                    style="display: none; width: 100%; padding: 30px; overflow-y: auto;">
+                    <div class="class-management-container" style="max-width: 1200px; margin: 0 auto; width: 100%;">
+                        <div class="form-group"
+                            style="background:rgba(0,0,0,0.2); padding: 24px; border-radius: 16px; margin-bottom: 24px; border: 1px solid rgba(255,255,255,0.05);">
+                            <h3 style="margin-bottom:12px; font-size:1.4rem;">👥 Управление классами</h3>
+                            <label style="color:#94a3b8;margin-bottom:12px;display:block;font-size:0.95rem;">Введите код
+                                класса для загрузки полного списка учеников и их статистик.</label>
+                            <div style="display: flex; gap: 12px;">
+                                <input type="text" id="class-lookup-code" placeholder="Например: ALEM-101"
+                                    style="flex:1;">
+                                <button id="load-class-btn" class="btn-primary"
+                                    style="white-space: nowrap; padding: 0 32px; margin-top:0;">Загрузить класс</button>
+                            </div>
+                        </div>
+
+                        <div id="class-students-list">
+                            <div style="text-align:center; padding: 60px 0; color: #64748b;">
+                                <div style="font-size:3rem; margin-bottom:16px; opacity:0.5;">👨‍🏫</div>
+                                <h3>Здесь появится информация о классе</h3>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ==========================
+                     SUB-VIEW 3: EXAMS
+                     ========================== -->
+                <div id="t-view-exams" class="teacher-subview"
+                    style="display: none; width: 100%; padding: 30px; overflow-y: auto;">
+                    <div style="max-width: 1000px; margin: 0 auto; width: 100%;">
+                        <!-- Tabs -->
+                        <div
+                            style="display:flex;gap:4px;margin-bottom:24px;background:rgba(0,0,0,0.2);padding:6px;border-radius:12px;">
+                            <button id="exam-tab-btn-create" onclick="switchExamTab('create')"
+                                style="flex:1;padding:12px;border:none;border-radius:9px;background:rgba(16,185,129,0.8);color:white;font-weight:600;cursor:pointer;font-size:0.95rem;transition:all 0.2s;">➕
+                                Создать экзамен</button>
+                            <button id="exam-tab-btn-schedule" onclick="switchExamTab('schedule')"
+                                style="flex:1;padding:12px;border:none;border-radius:9px;background:transparent;color:#94a3b8;font-weight:600;cursor:pointer;font-size:0.95rem;transition:all 0.2s;">📅
+                                Назначить экзамен</button>
+                            <button id="exam-tab-btn-results" onclick="switchExamTab('results')"
+                                style="flex:1;padding:12px;border:none;border-radius:9px;background:transparent;color:#94a3b8;font-weight:600;cursor:pointer;font-size:0.95rem;transition:all 0.2s;">📊
+                                Результаты классов</button>
+                        </div>
+
+                        <!-- Tab: Create -->
+                        <div id="exam-tab-create" class="exam-tab active">
+                            <div class="task-form-panel"
+                                style="background:rgba(0,0,0,0.2); border:1px solid rgba(255,255,255,0.05); padding:24px; border-radius:16px;">
+                                <h3>Создать новый экзамен</h3>
+                                <div style="display:flex; gap:12px; flex-wrap:wrap;">
+                                    <div class="form-group" style="flex:3; min-width:220px;">
+                                        <label>Название экзамена</label>
+                                        <input type="text" id="exam-create-title"
+                                            placeholder="Например: Итоговый тест по Математике (Четверть 1)">
+                                    </div>
+                                    <div class="form-group" style="flex:1; min-width:130px;">
+                                        <label>⏱ Длительность (мин)</label>
+                                        <input type="number" id="exam-create-duration" min="5" max="180" value="60"
+                                            placeholder="60">
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label>Описание / Инструкции для учеников</label>
+                                    <textarea id="exam-create-desc" rows="3"
+                                        placeholder="Инструкции перед началом..."></textarea>
+                                </div>
+
+                                <!-- AI Generator Panel -->
+                                <div
+                                    style="margin-top: 24px; padding: 20px; background: rgba(99,102,241,0.1); border: 1px solid rgba(99,102,241,0.3); border-radius: 12px; position: relative; overflow: hidden;">
+                                    <div
+                                        style="position: absolute; top:-20px; right:-20px; font-size:6rem; opacity:0.1; pointer-events:none;">
+                                        🤖</div>
+                                    <h4 style="color:#818cf8; margin-bottom: 16px; font-size:1.05rem;">✨ Сгенерировать
+                                        вопросы с помощью ИИ</h4>
+                                    <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+                                        <div class="form-group" style="flex: 2; min-width: 200px;">
+                                            <label>Тема экзамена</label>
+                                            <input type="text" id="ai-exam-topic"
+                                                placeholder="Например: История Казахстана (ХХ век)">
+                                        </div>
+                                        <div class="form-group" style="flex: 1; min-width: 120px;">
+                                            <label>Сложность</label>
+                                            <select id="ai-exam-diff" style="width: 100%;">
+                                                <option value="Легкий">Легкий</option>
+                                                <option value="Средний" selected>Средний</option>
+                                                <option value="Сложный">Сложный</option>
+                                            </select>
+                                        </div>
+                                        <div class="form-group" style="flex: 1; min-width: 120px;">
+                                            <label>Кол-во вопросов</label>
+                                            <input type="number" id="ai-exam-count" min="1" max="20" value="5">
+                                        </div>
+                                    </div>
+                                    <button id="generate-ai-exam-btn" class="btn-primary"
+                                        style="background: linear-gradient(135deg, #6366f1, #4f46e5); padding: 12px; margin-top: 8px;">🚀
+                                        Сгенерировать вопросы</button>
+                                </div>
+
+                                <div id="exam-questions-container"
+                                    style="margin-top:30px; display:flex; flex-direction:column; gap:20px;">
+                                    <!-- Questions are injected here via JS -->
+                                </div>
+
+                                <div style="display:flex; gap:12px; margin-top:24px;">
+                                    <button onclick="addExamQuestion('test')" class="btn-secondary"
+                                        style="flex:1; background:rgba(99,102,241,0.15); color:#818cf8; border:1px dashed #6366f1;">+
+                                        Добавить Тест (5 вариантов)</button>
+                                    <button onclick="addExamQuestion('text')" class="btn-secondary"
+                                        style="flex:1; background:rgba(16,185,129,0.15); color:#34d399; border:1px dashed #10b981;">+
+                                        Добавить Открытый вопрос (Ввод текста)</button>
+                                    <button onclick="addExamQuestion('match')" class="btn-secondary"
+                                        style="flex:1; background:rgba(236,72,153,0.15); color:#f472b6; border:1px dashed #ec4899;">+
+                                        Добавить Сопоставление</button>
+                                </div>
+
+                                <hr style="border:0; border-top:1px solid rgba(255,255,255,0.1); margin: 30px 0;">
+                                <button id="save-exam-btn" class="btn-primary"
+                                    style="background: linear-gradient(135deg, #10b981, #059669);">💾 Сохранить
+                                    экзамен</button>
+                            </div>
+                        </div>
+
+                        <!-- Tab: Schedule -->
+                        <div id="exam-tab-schedule" class="exam-tab" style="display:none;">
+                            <div class="task-form-panel"
+                                style="background:rgba(0,0,0,0.2); border:1px solid rgba(255,255,255,0.05); padding:24px; border-radius:16px;">
+                                <h3>Назначить экзамен классу</h3>
+                                <div class="form-group">
+                                    <label>Выберите экзамен</label>
+                                    <select id="exam-schedule-select"
+                                        style="width:100%; color: white; background: rgba(0,0,0,0.3);">
+                                        <option value="">(Загрузка...)</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Код класса</label>
+                                    <input type="text" id="exam-schedule-class" placeholder="Например: ALEM-101">
+                                </div>
+                                <div class="form-group">
+                                    <label>Дата проведения / Дедлайн</label>
+                                    <input type="datetime-local" id="exam-schedule-date"
+                                        style="color:white; color-scheme:dark;">
+                                </div>
+                                <button id="assign-exam-btn" class="btn-primary"
+                                    style="background: linear-gradient(135deg, #f59e0b, #d97706); margin-top:20px;">📅
+                                    Назначить классу</button>
+                            </div>
+                        </div>
+
+                        <!-- Tab: Results & Analytics -->
+                        <div id="exam-tab-results" class="exam-tab" style="display:none;">
+                            <div class="task-form-panel"
+                                style="background:rgba(0,0,0,0.2); border:1px solid rgba(255,255,255,0.05); padding:24px; border-radius:16px;">
+                                <h3>Аналитика и результаты экзаменов</h3>
+                                <div class="form-group">
+                                    <label>Выберите проведенный экзамен (по назначению)</label>
+                                    <div style="display:flex; gap:12px;">
+                                        <select id="exam-results-select"
+                                            style="flex:1; color: white; background: rgba(0,0,0,0.3); padding:10px; border-radius:6px; border:1px solid rgba(255,255,255,0.2);">
+                                            <option value="">Нажмите "Обновить" -> </option>
+                                        </select>
+                                        <button id="load-exam-results-list-btn" class="btn-secondary" style="padding: 10px 20px;">🔄 Обновить</button>
+                                    </div>
+                                </div>
+                                <button id="analyze-results-btn" class="btn-primary"
+                                    style="background: linear-gradient(135deg, #ec4899, #be185d); margin-top:10px;">🤖 Загрузить и Анализировать результаты</button>
+                                
+                                <!-- Summary area -->
+                                <div id="exam-analytics-summary" style="margin-top:24px; display:none; gap:16px;">
+                                    <div style="flex:1; background:rgba(16,185,129,0.1); border:1px solid rgba(16,185,129,0.3); border-radius:12px; padding:16px; text-align:center;">
+                                        <div style="font-size:0.9rem; color:#34d399;">Сдано работ</div>
+                                        <div id="analytics-total-subs" style="font-size:2rem; font-weight:bold; color:white;">0</div>
+                                    </div>
+                                    <div style="flex:1; background:rgba(99,102,241,0.1); border:1px solid rgba(99,102,241,0.3); border-radius:12px; padding:16px; text-align:center;">
+                                        <div style="font-size:0.9rem; color:#818cf8;">Средний балл %</div>
+                                        <div id="analytics-avg-score" style="font-size:2rem; font-weight:bold; color:white;">0%</div>
+                                    </div>
+                                </div>
+
+                                <!-- AI Output area -->
+                                <div id="exam-analytics-ai" style="margin-top:24px; padding:20px; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.1); border-radius:12px; display:none;">
+                                    <h4 style="color:#f472b6; margin-bottom:12px; font-size:1.1rem;">✨ ИИ-Аналитика класса</h4>
+                                    <div id="analytics-ai-content" style="color:#e2e8f0; line-height:1.6; font-size:0.95rem;"></div>
+                                </div>
+
+                                <!-- Submissions Table area -->
+                                <div id="exam-analytics-table-container" style="margin-top:24px; display:none;">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- ======================= -->
+        <!--   STUDENT DASHBOARD     -->
+        <!-- ======================= -->
+        <div id="student-view" class="view-section dashboard-layout glass-panel">
+            <div class="dash-header">
+                <div class="dash-logo">🎓 AlemEdu <span>Student</span></div>
+                <!-- Student Nav tabs -->
+                <div class="dash-nav student-nav">
+                    <button class="nav-btn active" data-view="s-view-tasks">📝 Задачи</button>
+                    <button class="nav-btn" data-view="s-view-exams">📑 Экзамены</button>
+                </div>
+                <div class="user-profile">
+                    <div style="display: flex; flex-direction: column; text-align: right;">
+                        <span id="s-user-name" style="font-weight: 600;">Студент</span>
+                        <span id="s-class-badge" style="font-size: 0.8rem; color: #10b981;">Класс: ALEM-101</span>
+                    </div>
+                    <button id="s-logout" class="logout-btn">Выйти</button>
+                </div>
+            </div>
+            <div class="dash-body" style="width: 100%; display: flex; flex-direction:column;">
+
+                <!-- View: Practical Tasks (Current Default) -->
+                <div id="s-view-tasks" class="student-subview active student-workspace">
+                    <h2>Мои задачи</h2>
+                    <div class="tasks-grid" id="student-tasks">
+                        <!-- Tasks will be inserted here -->
+                    </div>
+                </div>
+
+                <!-- View: Exams -->
+                <div id="s-view-exams" class="student-subview student-workspace" style="display:none;">
+                    <h2>Активные экзамены</h2>
+                    <div class="tasks-grid" id="student-exams">
+                        <!-- Exam cards will be inserted here -->
+                    </div>
+
+                    <!-- =============================================
+                         EXAM ROOM - Full Proctoring Overlay
+                         ============================================= -->
+                    <div id="take-exam-overlay"
+                        style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:#060913; z-index:9999; overflow:hidden; flex-direction:column;">
+
+                        <!-- Fullscreen Lock Screen -->
+                        <div id="fullscreen-lock"
+                            style="display:none; position:absolute; top:0; left:0; width:100%; height:100%; background:rgba(6,9,19,0.97); z-index:200; flex-direction:column; justify-content:center; align-items:center; text-align:center; gap:20px;">
+                            <div style="font-size:4rem;">🔒</div>
+                            <h2 style="color:#ef4444; font-size:1.8rem;">Тест на паузе</h2>
+                            <p style="color:#94a3b8; max-width:400px;">Вы вышли из полноэкранного режима. Для
+                                продолжения экзамена необходимо вернуться в полный экран.</p>
+                            <button id="reenter-fullscreen-btn" class="btn-primary"
+                                style="padding:14px 32px; font-size:1rem;">🖥️ Вернуться в полный экран</button>
+                        </div>
+
+                        <!-- Exam Header -->
+                        <div id="exam-room-header"
+                            style="display:flex; justify-content:space-between; align-items:center; padding:14px 28px; background:rgba(15,23,42,0.9); border-bottom:1px solid rgba(255,255,255,0.08); flex-shrink:0;">
+                            <div style="display:flex; align-items:center; gap:16px;">
+                                <div style="font-size:1.1rem; font-weight:700; color:#f8fafc;" id="exam-room-title">
+                                    Экзамен</div>
+                                <div
+                                    style="font-size:0.8rem; padding:4px 10px; background:rgba(16,185,129,0.15); color:#10b981; border-radius:6px; border:1px solid rgba(16,185,129,0.3);">
+                                    🔴 ПРОКТОРИНГ АКТИВЕН</div>
+                            </div>
+                            <div style="display:flex; align-items:center; gap:20px;">
+                                <div id="violation-badge"
+                                    style="font-size:0.8rem; padding:4px 10px; background:rgba(245,158,11,0.15); color:#f59e0b; border-radius:6px; border:1px solid rgba(245,158,11,0.3);">
+                                    ⚠️ Нарушений: 0</div>
+                                <div id="exam-timer"
+                                    style="font-size:1.5rem; font-weight:800; color:#10b981; font-variant-numeric:tabular-nums; letter-spacing:0.05em;">
+                                    60:00</div>
+                            </div>
+                        </div>
+
+                        <!-- Camera Feed (floating top-right) -->
+                        <div id="camera-feed-wrapper"
+                            style="position:absolute; top:80px; right:24px; z-index:100; border-radius:12px; overflow:hidden; border:2px solid rgba(239,68,68,0.5); box-shadow:0 0 20px rgba(239,68,68,0.2);">
+                            <video id="proctor-video" autoplay muted playsinline
+                                style="width:160px; height:120px; object-fit:cover; display:block;"></video>
+                            <div
+                                style="position:absolute; top:6px; left:8px; display:flex; align-items:center; gap:5px;">
+                                <div class="live-dot"></div>
+                                <span
+                                    style="font-size:0.65rem; font-weight:700; color:white; letter-spacing:0.08em;">LIVE</span>
+                            </div>
+                            <canvas id="snapshot-canvas" style="display:none;"></canvas>
+                        </div>
+
+                        <!-- Exam Body (scrollable questions) -->
+                        <div style="flex:1; overflow-y:auto; padding:32px; padding-right:220px;">
+                            <p id="take-exam-desc" style="color:#94a3b8; margin-bottom:28px;"></p>
+                            <div id="take-exam-questions" style="display:flex; flex-direction:column; gap:24px;"></div>
+
+                            <!-- AI Grading Indicator -->
+                            <div id="grading-status"
+                                style="display:none; margin-top:20px; padding:20px; background:rgba(16,185,129,0.1); border:1px solid #10b981; border-radius:12px; color:#10b981;">
+                                ИИ проверяет работу... 🤖✨</div>
+                        </div>
+
+                        <!-- Exam Footer -->
+                        <div
+                            style="padding:16px 28px; background:rgba(15,23,42,0.9); border-top:1px solid rgba(255,255,255,0.08); display:flex; justify-content:space-between; align-items:center; flex-shrink:0;">
+                            <span style="color:#64748b; font-size:0.85rem;">Копирование и вставка заблокированы.
+                                Переключение вкладок фиксируется.</span>
+                            <div style="display: flex; gap: 12px;">
+                                <button id="submit-exam-btn" class="btn-primary"
+                                    style="background:linear-gradient(135deg, #10b981, #059669); padding:12px 32px;">✅
+                                    Завершить экзамен</button>
+                                <button id="return-dashboard-btn" class="btn-primary"
+                                    style="display:none; background:linear-gradient(135deg, #3b82f6, #2563eb); padding:12px 32px;">🏠
+                                    Вернуться на главную страницу</button>
+                            </div>
+                        </div>
+
+                        <!-- Submit Confirmation Modal -->
+                        <div id="submit-confirm-modal"
+                            style="display:none; position:absolute; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:150; justify-content:center; align-items:center;">
+                            <div
+                                style="background:#0f172a; border:1px solid rgba(255,255,255,0.1); border-radius:20px; padding:40px; max-width:440px; width:90%; text-align:center;">
+                                <div style="font-size:3rem; margin-bottom:16px;">📋</div>
+                                <h3 style="margin-bottom:12px;">Завершить экзамен?</h3>
+                                <p style="color:#94a3b8; margin-bottom:28px;">После подтверждения ответы будут
+                                    отправлены и проверены ИИ.</p>
+                                <div style="display:flex; gap:12px; justify-content:center;">
+                                    <button id="cancel-submit-btn"
+                                        style="padding:12px 24px; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.1); border-radius:10px; color:white; cursor:pointer;">Отмена</button>
+                                    <button id="confirm-submit-btn" class="btn-primary" style="padding:12px 24px;">Да,
+                                        завершить</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Toast Notification -->
+                        <div id="exam-toast"
+                            style="display:none; position:absolute; bottom:80px; left:50%; transform:translateX(-50%); background:rgba(239,68,68,0.9); color:white; padding:12px 24px; border-radius:10px; font-weight:600; z-index:300; white-space:nowrap;">
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Student Result Modal -->
+    <div id="student-result-modal" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.8); backdrop-filter:blur(10px); z-index:1000; align-items:center; justify-content:center;">
+        <div style="background:#0f172a; border:1px solid rgba(255,255,255,0.1); border-radius:20px; padding:30px; max-width:600px; width:90%; height:80vh; display:flex; flex-direction:column;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+                <h3 style="font-size:1.5rem; color:white;">Результаты экзамена</h3>
+                <button onclick="document.getElementById('student-result-modal').style.display='none'" style="background:none; border:none; color:#cbd5e1; font-size:1.5rem; cursor:pointer;">&times;</button>
+            </div>
+            <div id="srm-score-summary" style="padding:15px; background:rgba(16,185,129,0.1); border:1px solid rgba(16,185,129,0.3); border-radius:12px; margin-bottom:20px; text-align:center;">
+                <h2 id="srm-score-text" style="color:#34d399; margin:0;">0 / 0</h2>
+            </div>
+            <div style="flex:1; overflow-y:auto; padding:15px; background:rgba(0,0,0,0.3); border-radius:12px; border:1px solid rgba(255,255,255,0.05);">
+                <div id="srm-log-content" style="color:#cbd5e1; line-height:1.6; font-family:monospace; font-size:0.9rem;"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Application scripts -->
+    <script src="js/firebase-config.js"></script>
+    <script src="js/app.js"></script>
+</body>
+
+</html>
