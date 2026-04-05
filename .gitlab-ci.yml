@@ -1,0 +1,41 @@
+image: alpine
+
+pages:
+  stage: deploy
+  before_script:
+    - apk add --no-cache bash
+  script:
+    # Copy all site files into the required "public/" folder
+    - mkdir -p public
+    - cp -r css js index.html public/ 2>/dev/null || true
+
+    # Inject env.js from GitLab CI/CD secret variables
+    # ➜ Set these in: GitLab Project → Settings → CI/CD → Variables
+    - |
+      cat > public/js/env.js << ENVEOF
+      const isLocal = location.protocol === 'file:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+      const LOCAL_PROXY = 'http://localhost:3000/proxy?url=';
+      const wrapUrl = (url) => isLocal ? LOCAL_PROXY + url : url;
+      window.ENV = {
+        LLM_API_KEY: '${LLM_API_KEY}',
+        LLM_API_URL: wrapUrl('https://llm.alem.ai/v1/chat/completions'),
+        GEMINI_API_KEY: '${GEMINI_API_KEY}',
+        SCORE_API_KEY: '${SCORE_API_KEY}',
+        SCORE_API_URL: wrapUrl('https://reranker-llm.alem.ai/v1/score'),
+        GOOGLE_DRIVE_API_KEY: '${GOOGLE_DRIVE_API_KEY}',
+        CORS_PROXY: isLocal ? LOCAL_PROXY : '',
+        ALEM_STT_KEY: '${ALEM_STT_KEY}',
+        ALEM_STT_URL: wrapUrl('https://llm.alem.ai/v1/audio/transcriptions'),
+        DEEPSEEK_OCR_KEY: '${DEEPSEEK_OCR_KEY}',
+        DEEPSEEK_OCR_URL: wrapUrl('https://llm.alem.ai/v1/chat/completions')
+      };
+      console.log('[ENV] Mode: PRODUCTION (direct API calls)');
+      ENVEOF
+    - echo "✅ env.js injected successfully"
+
+  artifacts:
+    paths:
+      - public
+
+  only:
+    - main

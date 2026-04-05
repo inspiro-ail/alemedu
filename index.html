@@ -1,0 +1,1621 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AlemEdu Sovereign Platform</title>
+    <!-- Fonts -->
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Outfit:wght@400;600;700&display=swap"
+        rel="stylesheet">
+    <!-- Firebase JS (Compat for generic HTML) -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-storage-compat.js"></script>
+
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="css/styles.css?v=3">
+
+    <!-- Markdown & MathJax support -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script>
+        MathJax = {
+            tex: { inlineMath: [['\\(', '\\)']], displayMath: [['\\[', '\\]']] }
+        };
+    </script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+    <!-- Skulpt: In-browser Python -->
+    <script src="https://cdn.jsdelivr.net/npm/skulpt@1.2.0/dist/skulpt.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/skulpt@1.2.0/dist/skulpt-stdlib.js"></script>
+</head>
+
+<body>
+    <div class="bg-orb orb-1"></div>
+    <div class="bg-orb orb-2"></div>
+
+    <div id="app-container">
+
+        <!-- ======================= -->
+        <!--  AUTHENTICATION VIEW   -->
+        <!-- ======================= -->
+        <div id="auth-view" class="view-section active">
+            <div class="auth-card glass-panel">
+                <div class="auth-header">
+                    <h1>AlemEdu</h1>
+                    <p>Образовательная платформа будущего</p>
+                </div>
+
+                <div class="auth-tabs">
+                    <button class="tab-btn active" data-mode="login">Вход</button>
+                    <button class="tab-btn" data-mode="register">Регистрация</button>
+                </div>
+
+                <form id="auth-form">
+                    <div id="register-fields" style="display: none;">
+                        <div class="form-group">
+                            <label>Ваше имя</label>
+                            <input type="text" id="display-name" placeholder="Жандос Сарсенов">
+                        </div>
+                        <div class="form-group">
+                            <div class="role-switch-container">
+                                <label>Я:</label>
+                                <select id="role-select" style="width: 70%; padding: 8px;">
+                                    <option value="student">Студент</option>
+                                    <option value="teacher">Учитель</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-group" id="subject-group" style="display: none;">
+                            <label>Ваш предмет (только для учителей)</label>
+                            <select id="subject-select" style="width: 100%; padding: 10px; background:rgba(0,0,0,0.3); color:white; border:1px solid rgba(255,255,255,0.1); border-radius:8px;">
+                                <option value="Естествознание">🌍 Естествознание</option>
+                                <option value="Информатика">💻 Информатика</option>
+                                <option value="Математика">📐 Математика</option>
+                                <option value="История Казахстана">🇰🇿 История Казахстана</option>
+                                <option value="Самопознание">🧘 Самопознание</option>
+                            </select>
+                        </div>
+                        <div class="form-group" id="class-code-group">
+                            <label>Код класса</label>
+                            <input type="text" id="class-code" placeholder="Например: ALEM-10A">
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>E-mail</label>
+                        <input type="email" id="email" required placeholder="example@alem.ai">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Пароль</label>
+                        <input type="password" id="password" required placeholder="••••••••">
+                    </div>
+
+                    <div class="error-text" id="error-text"></div>
+
+                    <button type="submit" class="btn-primary" id="submit-btn">Войти / Sign In</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- ======================= -->
+        <!--   TEACHER DASHBOARD     -->
+        <!-- ======================= -->
+        <div id="teacher-view" class="view-section dashboard-layout glass-panel">
+            <!-- Sidebar Drawer (Teacher) -->
+            <div id="t-side-menu" class="side-menu-drawer">
+                <div class="drawer-header">
+                    <div class="drawer-logo">✨ AlemEdu <span>Teacher</span></div>
+                </div>
+                <div class="dash-nav teacher-nav">
+                    <button class="nav-btn" data-view="t-view-profile">👤 Личный кабинет</button>
+                    <button class="nav-btn active" data-view="t-view-workspace">🤖 ИИ & Задачи</button>
+                    <button class="nav-btn" data-view="t-view-lessons">📚 Уроки (Видео)</button>
+                    <button class="nav-btn" data-view="t-view-classes">👥 Мои Классы</button>
+                    <button class="nav-btn" data-view="t-view-exams">📑 Экзамены</button>
+                    <button class="nav-btn" data-view="t-view-ranking">🏆 Рейтинг класса</button>
+                    <button class="nav-btn" data-view="t-view-gradebook">📊 Журнал оценок</button>
+                    <button class="nav-btn" data-view="t-view-calendar">📅 Календарь</button>
+
+                    <button class="nav-btn" data-view="t-view-kahoot" style="background: rgba(244, 63, 94, 0.1); border: 1px solid rgba(244, 63, 94, 0.2); margin-top: 10px; color: #fb7185;">🎯 Викторина ИИ</button>
+                    <button class="nav-btn" data-view="t-view-wheel" style="background: rgba(251, 191, 36, 0.1); border: 1px solid rgba(251, 191, 36, 0.2); margin-top: 8px; color: #fbbf24;">🎡 Колесо удачи</button>
+                </div>
+            </div>
+
+            <!-- Main Content Area -->
+            <div class="view-section-content" style="display: flex; flex-direction: column;">
+                <div class="dash-header">
+                    <div class="dash-logo">✨ AlemEdu <span>Teacher Dashboard</span></div>
+                    
+                    <div class="user-profile">
+                        <span id="t-user-name">Преподаватель</span>
+                        <button id="t-logout" class="logout-btn">Выйти</button>
+                    </div>
+                </div>
+
+                <div class="dash-body">
+
+                <!-- ==========================
+                     SUB-VIEW 0: PROFILE / CABINET 
+                     ========================== -->
+                <div id="t-view-profile" class="teacher-subview" style="display: none; width: 100%; padding: 40px; overflow-y: auto;">
+                    <div style="max-width: 1000px; margin: 0 auto;">
+                        <h2 style="font-size: 2rem; color: white; margin-bottom: 20px; font-weight: 800;">👤 Личный кабинет</h2>
+                        
+                        <!-- Teacher Info Card -->
+                        <div class="glass-panel" style="padding: 30px; border-radius: 20px; display: flex; align-items: center; gap: 30px; margin-bottom: 40px;">
+                            <div style="width: 100px; height: 100px; border-radius: 50%; background: linear-gradient(135deg, #3b82f6, #8b5cf6); display: flex; align-items: center; justify-content: center; font-size: 3rem; color: white; flex-shrink: 0;">
+                                👨‍🏫
+                            </div>
+                            <div style="flex: 1;">
+                                <div style="color: #8b5cf6; font-size: 0.9rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 5px;">Преподаватель</div>
+                                <div class="form-group" style="margin-bottom: 15px;">
+                                    <input type="text" id="t-profile-name" placeholder="Ваше Имя" style="font-size: 1.5rem; font-weight: 700; background: transparent; border: none; border-bottom: 2px solid rgba(255,255,255,0.2); color: white; padding: 5px 0; width: 100%; max-width: 400px; outline: none; transition: border-color 0.2s;" onfocus="this.style.borderColor='#3b82f6'" onblur="this.style.borderColor='rgba(255,255,255,0.2)'">
+                                </div>
+                                <div style="color: #94a3b8; font-size: 1rem; margin-bottom: 20px;" id="t-profile-email">email@example.com</div>
+                                <div style="display: flex; gap: 15px;">
+                                    <button class="btn-primary" onclick="window.updateTeacherProfile()" style="padding: 10px 24px; border-radius: 12px; font-weight: 600;">Сохранить изменения</button>
+                                    <button class="btn-secondary" onclick="window.resetTeacherPassword()" style="padding: 10px 24px; border-radius: 12px; background: rgba(239, 68, 68, 0.1); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3);">Изменить пароль</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Global Statistics -->
+                        <h3 style="font-size: 1.4rem; color: white; margin-bottom: 20px;">Глобальная статистика</h3>
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px;">
+                            <div style="background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.3); border-radius: 16px; padding: 25px; text-align: center;">
+                                <div style="font-size: 2.5rem; margin-bottom: 10px;">👥</div>
+                                <div id="t-stat-students" style="font-size: 2.5rem; font-weight: 800; color: white; line-height: 1;">0</div>
+                                <div style="color: #94a3b8; font-size: 0.95rem; margin-top: 10px;">Учеников</div>
+                            </div>
+                            <div style="background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 16px; padding: 25px; text-align: center;">
+                                <div style="font-size: 2.5rem; margin-bottom: 10px;">🏫</div>
+                                <div id="t-stat-classes" style="font-size: 2.5rem; font-weight: 800; color: white; line-height: 1;">0</div>
+                                <div style="color: #94a3b8; font-size: 0.95rem; margin-top: 10px;">Классов</div>
+                            </div>
+                            <div style="background: rgba(139, 92, 246, 0.1); border: 1px solid rgba(139, 92, 246, 0.3); border-radius: 16px; padding: 25px; text-align: center;">
+                                <div style="font-size: 2.5rem; margin-bottom: 10px;">📝</div>
+                                <div id="t-stat-submissions" style="font-size: 2.5rem; font-weight: 800; color: white; line-height: 1;">0</div>
+                                <div style="color: #94a3b8; font-size: 0.95rem; margin-top: 10px;">Решено задач</div>
+                            </div>
+                            <div style="background: rgba(244, 63, 94, 0.1); border: 1px solid rgba(244, 63, 94, 0.3); border-radius: 16px; padding: 25px; text-align: center;">
+                                <div style="font-size: 2.5rem; margin-bottom: 10px;">📑</div>
+                                <div id="t-stat-exams" style="font-size: 2.5rem; font-weight: 800; color: white; line-height: 1;">0</div>
+                                <div style="color: #94a3b8; font-size: 0.95rem; margin-top: 10px;">Экзаменов</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ==========================
+                     SUB-VIEW 1: WORKSPACE 
+                     ========================== -->
+                <div id="t-view-workspace" class="teacher-subview active">
+                    <div class="teacher-workspace" style="display: flex; width: 100%; height: 100%;">
+                        <!-- Chat Panel (AlemLLM) -->
+                        <div class="chat-panel">
+                            <div class="chat-messages" id="chatbox">
+                                <!-- Messages dynamically appear here -->
+                            </div>
+                            <div class="chat-input-area">
+                                <textarea id="userInput" placeholder="Напишите задачу для генерации..."
+                                    rows="1"></textarea>
+                                <button id="sendBtn" class="send-btn">
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                        stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <line x1="22" y1="2" x2="11" y2="13"></line>
+                                        <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Tabbed Right Panel -->
+                        <div class="task-creation-panel">
+                            <!-- Tab Bar -->
+                            <div
+                                style="display:flex;gap:4px;margin-bottom:16px;background:rgba(0,0,0,0.2);padding:4px;border-radius:12px;">
+                                <button id="tab-btn-task" onclick="switchTeacherTab('task')"
+                                    style="flex:1;padding:8px;border:none;border-radius:9px;background:rgba(99,102,241,0.8);color:white;font-weight:600;cursor:pointer;font-size:0.85rem;transition:all 0.2s;">📝
+                                    Задача</button>
+                                <button id="tab-btn-results" onclick="switchTeacherTab('results')"
+                                    style="flex:1;padding:8px;border:none;border-radius:9px;background:transparent;color:#94a3b8;font-weight:600;cursor:pointer;font-size:0.85rem;transition:all 0.2s;">📊
+                                    Все результаты</button>
+
+                            </div>
+
+                            <!-- Tab: Task Creation -->
+                            <div id="tab-task" class="teacher-tab">
+                                <div class="task-form-panel">
+                                    <h3>Создать задачу 📝</h3>
+                                    <div class="form-group">
+                                        <label>Текст задачи (заполняется ИИ)</label>
+                                        <textarea id="task-content" rows="10"
+                                            placeholder="Здесь будет сгенерированная задача..."
+                                            style="width: 100%; border-radius: 8px; padding: 12px; background: rgba(0,0,0,0.3); color: white; border: 1px solid rgba(255,255,255,0.2);"></textarea>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Отправить классу (Код)</label>
+                                        <input type="text" id="task-class-code" placeholder="Например: ALEM-10A"
+                                            value="ALEM-101">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Дедлайн (необязательно)</label>
+                                        <input type="datetime-local" id="task-deadline" style="color:white; color-scheme:dark;">
+                                    </div>
+                                    <button id="send-task-btn" class="btn-primary">Отправить в класс</button>
+                                </div>
+                            </div>
+
+                            <!-- Tab: Student Results -->
+                            <div id="tab-results" class="teacher-tab" style="display:none;">
+                                <div class="task-form-panel">
+                                    <h3>📊 Лента результатов</h3>
+                                    <div class="form-group">
+                                        <label>Код класса для просмотра</label>
+                                        <div style="display: flex; gap: 8px;">
+                                            <input type="text" id="results-class-code" placeholder="Например: ALEM-10A"
+                                                value="ALEM-101">
+                                            <button id="load-results-btn" class="btn-primary"
+                                                style="white-space: nowrap; padding: 0 16px; margin-top:0;">Загрузить</button>
+                                        </div>
+                                    </div>
+                                    <div id="submissions-list"
+                                        style="margin-top: 12px; max-height: 480px; overflow-y: auto;"></div>
+                                </div>
+                            </div>
+
+
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ==========================
+                     SUB-VIEW 1.5: LESSONS (TEACHER)
+                     ========================== -->
+                <div id="t-view-lessons" class="teacher-subview" style="display: none; width: 100%; padding: 30px; overflow-y: auto;">
+                    <div style="max-width: 1000px; margin: 0 auto; width: 100%;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px; flex-wrap:wrap; gap:16px;">
+                            <div>
+                                <h2 style="font-size:1.6rem; font-weight:700; background:linear-gradient(135deg,#3b82f6,#2dd4bf); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;">📚 Уроки (Видео)</h2>
+                                <p style="color:#64748b; font-size:0.85rem; margin-top:4px;">Добавляйте видеоуроки для вашего предмета</p>
+                            </div>
+                        </div>
+
+                        <!-- Add Lesson Form -->
+                        <div class="task-form-panel" style="background:rgba(0,0,0,0.2); border:1px solid rgba(255,255,255,0.05); padding:24px; border-radius:16px; margin-bottom: 24px;">
+                            <h3>➕ Добавить урок</h3>
+                            <div class="form-group">
+                                <label>Название урока</label>
+                                <input type="text" id="lesson-upload-title" placeholder="Например: Введение в геометрию">
+                            </div>
+                            <div class="form-group" style="margin-top: 15px;">
+                                <label>Ссылка на видео (YouTube или Google Drive)</label>
+                                <input type="url" id="lesson-upload-url" placeholder="https://www.youtube.com/watch?v=..." style="padding: 12px 14px; background: rgba(0,0,0,0.3); border-radius: 8px; border: 1px solid rgba(255,255,255,0.2); width: 100%; color: white; font-size: 0.9rem; outline: none; box-sizing: border-box;">
+                            </div>
+                            <div style="margin-top: 10px; font-size: 0.8rem; color: #64748b; display: flex; gap: 16px;">
+                                <span>📺 YouTube: обычная или unlisted ссылка</span>
+                                <span>📁 Google Drive: ссылка "Открыть доступ"</span>
+                            </div>
+                            <button id="lesson-upload-btn" class="btn-primary" style="margin-top: 20px;">💾 Сохранить урок</button>
+                        </div>
+
+                        <!-- Existing Lessons List -->
+                        <div style="background:rgba(0,0,0,0.2); border:1px solid rgba(255,255,255,0.05); padding:24px; border-radius:16px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                                <h3>Список ваших уроков</h3>
+                                <button id="load-teacher-lessons-btn" class="btn-secondary" style="padding: 6px 12px; font-size: 0.85rem;">🔄 Обновить</button>
+                            </div>
+                            <div id="teacher-lessons-list" style="display: flex; flex-direction: column; gap: 12px; max-height: 400px; overflow-y: auto;">
+                                <div style="color: #64748b; font-size: 0.9rem;">Нажмите "Обновить" для загрузки списка.</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ==========================
+                     SUB-VIEW 2: CLASS MANAGEMENT
+                     ========================== -->
+                <div id="t-view-classes" class="teacher-subview"
+                    style="display: none; width: 100%; padding: 30px; overflow-y: auto;">
+                    <div class="class-management-container" style="max-width: 1200px; margin: 0 auto; width: 100%;">
+                        <div class="form-group"
+                            style="background:rgba(0,0,0,0.2); padding: 24px; border-radius: 16px; margin-bottom: 24px; border: 1px solid rgba(255,255,255,0.05);">
+                            <h3 style="margin-bottom:12px; font-size:1.4rem;">👥 Управление классами</h3>
+                            <label style="color:#94a3b8;margin-bottom:12px;display:block;font-size:0.95rem;">Введите код
+                                класса для загрузки полного списка учеников и их статистик.</label>
+                            <div style="display: flex; gap: 12px;">
+                                <input type="text" id="class-lookup-code" placeholder="Например: ALEM-101"
+                                    style="flex:1;">
+                                <button id="load-class-btn" class="btn-primary"
+                                    style="white-space: nowrap; padding: 0 32px; margin-top:0;">Загрузить класс</button>
+                            </div>
+                        </div>
+
+                        <div id="class-students-list">
+                            <div style="text-align:center; padding: 60px 0; color: #64748b;">
+                                <div style="font-size:3rem; margin-bottom:16px; opacity:0.5;">👨‍🏫</div>
+                                <h3>Здесь появится информация о классе</h3>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ==========================
+                     SUB-VIEW 3: EXAMS
+                     ========================== -->
+                <div id="t-view-exams" class="teacher-subview"
+                    style="display: none; width: 100%; padding: 30px; overflow-y: auto;">
+                    <div style="max-width: 1000px; margin: 0 auto; width: 100%;">
+                        <!-- Tabs -->
+                        <div
+                            style="display:flex;gap:4px;margin-bottom:24px;background:rgba(0,0,0,0.2);padding:6px;border-radius:12px;">
+                            <button id="exam-tab-btn-create" onclick="switchExamTab('create')"
+                                style="flex:1;padding:12px;border:none;border-radius:9px;background:rgba(16,185,129,0.8);color:white;font-weight:600;cursor:pointer;font-size:0.95rem;transition:all 0.2s;">➕
+                                Создать экзамен</button>
+                            <button id="exam-tab-btn-schedule" onclick="switchExamTab('schedule')"
+                                style="flex:1;padding:12px;border:none;border-radius:9px;background:transparent;color:#94a3b8;font-weight:600;cursor:pointer;font-size:0.95rem;transition:all 0.2s;">📅
+                                Назначить экзамен</button>
+                            <button id="exam-tab-btn-results" onclick="switchExamTab('results')"
+                                style="flex:1;padding:12px;border:none;border-radius:9px;background:transparent;color:#94a3b8;font-weight:600;cursor:pointer;font-size:0.95rem;transition:all 0.2s;">📊
+                                Результаты классов</button>
+                        </div>
+
+                        <!-- Tab: Create -->
+                        <div id="exam-tab-create" class="exam-tab active">
+                            <div class="task-form-panel"
+                                style="background:rgba(0,0,0,0.2); border:1px solid rgba(255,255,255,0.05); padding:24px; border-radius:16px;">
+                                <h3>Создать новый экзамен</h3>
+                                <div style="display:flex; gap:12px; flex-wrap:wrap;">
+                                    <div class="form-group" style="flex:3; min-width:220px;">
+                                        <label>Название экзамена</label>
+                                        <input type="text" id="exam-create-title"
+                                            placeholder="Например: Итоговый тест по Математике (Четверть 1)">
+                                    </div>
+                                    <div class="form-group" style="flex:1; min-width:130px;">
+                                        <label>⏱ Длительность (мин)</label>
+                                        <input type="number" id="exam-create-duration" min="5" max="180" value="60"
+                                            placeholder="60">
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label>Описание / Инструкции для учеников</label>
+                                    <textarea id="exam-create-desc" rows="3"
+                                        placeholder="Инструкции перед началом..."></textarea>
+                                </div>
+
+                                <!-- AI Generator Panel -->
+                                <div
+                                    style="margin-top: 24px; padding: 20px; background: rgba(99,102,241,0.1); border: 1px solid rgba(99,102,241,0.3); border-radius: 12px; position: relative; overflow: hidden;">
+                                    <div
+                                        style="position: absolute; top:-20px; right:-20px; font-size:6rem; opacity:0.1; pointer-events:none;">
+                                        🤖</div>
+                                    <h4 style="color:#818cf8; margin-bottom: 16px; font-size:1.05rem;">✨ Сгенерировать
+                                        вопросы с помощью ИИ</h4>
+                                    <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+                                        <div class="form-group" style="flex: 2; min-width: 200px;">
+                                            <label>Тема экзамена</label>
+                                            <input type="text" id="ai-exam-topic"
+                                                placeholder="Например: История Казахстана (ХХ век)">
+                                        </div>
+                                        <div class="form-group" style="flex: 1; min-width: 120px;">
+                                            <label>Сложность</label>
+                                            <select id="ai-exam-diff" style="width: 100%;">
+                                                <option value="Легкий">Легкий</option>
+                                                <option value="Средний" selected>Средний</option>
+                                                <option value="Сложный">Сложный</option>
+                                            </select>
+                                        </div>
+                                        <div class="form-group" style="flex: 1; min-width: 120px;">
+                                            <label>Кол-во вопросов</label>
+                                            <input type="number" id="ai-exam-count" min="1" max="20" value="5">
+                                        </div>
+                                    </div>
+                                    <button id="generate-ai-exam-btn" class="btn-primary"
+                                        style="background: linear-gradient(135deg, #6366f1, #4f46e5); padding: 12px; margin-top: 8px;">🚀
+                                        Сгенерировать вопросы</button>
+                                </div>
+
+                                <div id="exam-questions-container"
+                                    style="margin-top:30px; display:flex; flex-direction:column; gap:20px;">
+                                    <!-- Questions are injected here via JS -->
+                                </div>
+
+                                <div style="display:flex; gap:12px; margin-top:24px;">
+                                    <button onclick="addExamQuestion('test')" class="btn-secondary"
+                                        style="flex:1; background:rgba(99,102,241,0.15); color:#818cf8; border:1px dashed #6366f1;">+
+                                        Добавить Тест (5 вариантов)</button>
+                                    <button onclick="addExamQuestion('text')" class="btn-secondary"
+                                        style="flex:1; background:rgba(16,185,129,0.15); color:#34d399; border:1px dashed #10b981;">+
+                                        Добавить Открытый вопрос (Ввод текста)</button>
+                                    <button onclick="addExamQuestion('match')" class="btn-secondary"
+                                        style="flex:1; background:rgba(236,72,153,0.15); color:#f472b6; border:1px dashed #ec4899;">+
+                                        Добавить Сопоставление</button>
+                                </div>
+
+                                <hr style="border:0; border-top:1px solid rgba(255,255,255,0.1); margin: 30px 0;">
+                                <button id="save-exam-btn" class="btn-primary"
+                                    style="background: linear-gradient(135deg, #10b981, #059669);">💾 Сохранить
+                                    экзамен</button>
+                            </div>
+                        </div>
+
+                        <!-- Tab: Schedule -->
+                        <div id="exam-tab-schedule" class="exam-tab" style="display:none;">
+                            <div class="task-form-panel"
+                                style="background:rgba(0,0,0,0.2); border:1px solid rgba(255,255,255,0.05); padding:24px; border-radius:16px;">
+                                <h3>Назначить экзамен классу</h3>
+                                <div class="form-group">
+                                    <label>Выберите экзамен</label>
+                                    <select id="exam-schedule-select"
+                                        style="width:100%; color: white; background: rgba(0,0,0,0.3);">
+                                        <option value="">(Загрузка...)</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Код класса</label>
+                                    <input type="text" id="exam-schedule-class" placeholder="Например: ALEM-101">
+                                </div>
+                                <div class="form-group">
+                                    <label>Дата проведения / Дедлайн</label>
+                                    <input type="datetime-local" id="exam-schedule-date"
+                                        style="color:white; color-scheme:dark;">
+                                </div>
+                                <button id="assign-exam-btn" class="btn-primary"
+                                    style="background: linear-gradient(135deg, #f59e0b, #d97706); margin-top:20px;">📅
+                                    Назначить классу</button>
+                            </div>
+                        </div>
+
+                        <!-- Tab: Results & Analytics -->
+                        <div id="exam-tab-results" class="exam-tab" style="display:none;">
+                            <div class="task-form-panel"
+                                style="background:rgba(0,0,0,0.2); border:1px solid rgba(255,255,255,0.05); padding:24px; border-radius:16px;">
+                                <h3>Аналитика и результаты экзаменов</h3>
+                                <div class="form-group">
+                                    <label>Выберите проведенный экзамен (по назначению)</label>
+                                    <div style="display:flex; gap:12px;">
+                                        <select id="exam-results-select"
+                                            style="flex:1; color: white; background: rgba(0,0,0,0.3); padding:10px; border-radius:6px; border:1px solid rgba(255,255,255,0.2);">
+                                            <option value="">Нажмите "Обновить" -> </option>
+                                        </select>
+                                        <button id="load-exam-results-list-btn" class="btn-secondary" style="padding: 10px 20px;">🔄 Обновить</button>
+                                    </div>
+                                </div>
+                                <button id="analyze-results-btn" class="btn-primary"
+                                    style="background: linear-gradient(135deg, #ec4899, #be185d); margin-top:10px;">🤖 Загрузить и Анализировать результаты</button>
+                                
+                                <!-- Summary area -->
+                                <div id="exam-analytics-summary" style="margin-top:24px; display:none; gap:16px;">
+                                    <div style="flex:1; background:rgba(16,185,129,0.1); border:1px solid rgba(16,185,129,0.3); border-radius:12px; padding:16px; text-align:center;">
+                                        <div style="font-size:0.9rem; color:#34d399;">Сдано работ</div>
+                                        <div id="analytics-total-subs" style="font-size:2rem; font-weight:bold; color:white;">0</div>
+                                    </div>
+                                    <div style="flex:1; background:rgba(99,102,241,0.1); border:1px solid rgba(99,102,241,0.3); border-radius:12px; padding:16px; text-align:center;">
+                                        <div style="font-size:0.9rem; color:#818cf8;">Средний балл %</div>
+                                        <div id="analytics-avg-score" style="font-size:2rem; font-weight:bold; color:white;">0%</div>
+                                    </div>
+                                </div>
+
+                                <!-- AI Output area -->
+                                <div id="exam-analytics-ai" style="margin-top:24px; padding:20px; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.1); border-radius:12px; display:none;">
+                                    <h4 style="color:#f472b6; margin-bottom:12px; font-size:1.1rem;">✨ ИИ-Аналитика класса</h4>
+                                    <div id="analytics-ai-content" style="color:#e2e8f0; line-height:1.6; font-size:0.95rem;"></div>
+                                </div>
+
+                                <!-- Submissions Table area -->
+                                <div id="exam-analytics-table-container" style="margin-top:24px; display:none;">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ==========================
+                     SUB-VIEW 4: CLASS RANKING (TEACHER)
+                     ========================== -->
+                <div id="t-view-ranking" class="teacher-subview"
+                    style="display: none; width: 100%; padding: 30px; overflow-y: auto;">
+                    <div class="rank-view-wrap">
+
+                        <!-- Header -->
+                        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:24px; flex-wrap:wrap; gap:12px;">
+                            <div>
+                                <h2 style="font-size:1.6rem; font-weight:700; background:linear-gradient(135deg,#fbbf24,#f59e0b); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;">🏆 Рейтинг класса</h2>
+                                <p style="color:#64748b; font-size:0.85rem; margin-top:4px;">GPA = задачи 50% + экзамены 50%</p>
+                            </div>
+                            <div style="display:flex; gap:8px; align-items:center;">
+                                <input type="text" id="t-rank-class-code" placeholder="Код класса (ALEM-101)"
+                                    style="padding:10px 14px; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.12); border-radius:10px; color:white; outline:none; font-size:0.9rem;"
+                                    value="ALEM-101">
+                                <button id="t-load-rank-btn" class="btn-primary"
+                                    style="padding:10px 22px; margin-top:0; white-space:nowrap; min-width:auto;">Загрузить</button>
+                            </div>
+                        </div>
+
+                        <!-- Stats row -->
+                        <div class="rank-stats-row" id="t-rank-stats" style="display:none;">
+                            <div class="rank-stat-card">
+                                <div class="stat-num" id="t-rs-students" style="color:#818cf8;">—</div>
+                                <div class="stat-lbl">Учеников</div>
+                            </div>
+                            <div class="rank-stat-card">
+                                <div class="stat-num" id="t-rs-avg-gpa" style="color:#10b981;">—</div>
+                                <div class="stat-lbl">Средний GPA</div>
+                            </div>
+                            <div class="rank-stat-card">
+                                <div class="stat-num" id="t-rs-top" style="color:#fbbf24;">—</div>
+                                <div class="stat-lbl">Лучший GPA</div>
+                            </div>
+                            <div class="rank-stat-card">
+                                <div class="stat-num" id="t-rs-a-count" style="color:#34d399;">—</div>
+                                <div class="stat-lbl">Отличников (A)</div>
+                            </div>
+                        </div>
+
+                        <!-- Content area -->
+                        <div id="t-rank-content">
+                            <div class="rank-empty">
+                                <div class="rank-empty-icon">🏆</div>
+                                <p>Введите код класса и нажмите «Загрузить»</p>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+                <!-- ==========================
+                     SUB-VIEW 5: TEACHER GRADEBOOK
+                     ========================== -->
+                <div id="t-view-gradebook" class="teacher-subview" style="display: none; width: 100%; padding: 30px; overflow-y: auto;">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 20px;">
+                        <div>
+                            <h2 style="font-size: 1.6rem; font-weight: 700; color: white;">📊 Электронный журнал (Edumark)</h2>
+                            <p style="color: #94a3b8; font-size: 0.9rem;">Вводите «н» для отметки отсутствия или вводите оценки. ИИ-оценки обновляются автоматически.</p>
+                        </div>
+                        <div style="display: flex; gap: 12px; align-items: center;">
+                            <input type="text" id="t-gb-class-code" value="ALEM-101" placeholder="Код класса" style="padding: 10px 14px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.12); border-radius: 10px; color: white; outline: none; font-size: 0.9rem; width: 120px;">
+                            <button id="t-gb-load-btn" class="btn-secondary" style="padding: 10px 20px;" onclick="loadAndRenderGradebookTeacher(document.getElementById('t-gb-class-code').value.trim())">Загрузить</button>
+                            <button id="t-gb-add-col-btn" class="btn-secondary" style="padding: 10px 20px; background: rgba(59,130,246,0.1); color: #3b82f6; border-color: rgba(59,130,246,0.3);" onclick="window.addGradebookColumn()">+ Добавить дату</button>
+                            <button id="t-gb-save-btn" class="btn-primary" style="padding: 10px 24px; background: linear-gradient(135deg, #10b981, #059669);" onclick="window.saveTeacherGradebook()">💾 Сохранить</button>
+                        </div>
+                    </div>
+
+                    <div style="background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; overflow-x: auto;">
+                        <table id="t-gradebook-table" style="width: 100%; border-collapse: collapse; min-width: 800px; color: white;">
+                            <thead style="background: rgba(255,255,255,0.05); border-bottom: 2px solid rgba(255,255,255,0.1);">
+                                <tr id="t-gb-header-row">
+                                    <th style="padding: 15px; text-align: left; position: sticky; left: 0; background: #1e293b; z-index: 10; border-right: 1px solid rgba(255,255,255,0.1); min-width: 200px;">Ученик</th>
+                                    <th style="padding: 15px; text-align: center; color: #a78bfa; border-right: 1px solid rgba(255,255,255,0.1);">ИИ Задачи</th>
+                                    <th style="padding: 15px; text-align: center; color: #f472b6; border-right: 2px solid rgba(255,255,255,0.2);">ИИ Экзамены</th>
+                                    <!-- Dynamic Date columns go here -->
+                                </tr>
+                            </thead>
+                            <tbody id="t-gb-body">
+                                <tr><td colspan="4" style="padding: 30px; text-align: center; color: #64748b;">Введите код класса и нажмите загрузить</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+
+
+                <!-- ==========================
+                     SUB-VIEW 6: CALENDAR (TEACHER)
+                     ========================== -->
+                <div id="t-view-calendar" class="teacher-subview" style="display: none; width: 100%; padding: 40px 15px 15px 15px; overflow-y: auto;">
+                    <div class="calendar-layout">
+                        <!-- Left Sidebar: Today Schedule & Controls -->
+                        <div class="calendar-sidebar schedule-panel glass-panel" style="padding: 24px; border-radius: 20px;">
+                            <div class="sch-today-wrap">
+                                <h3 style="margin-bottom: 15px;">📅 Сегодня</h3>
+                                <div id="t-schedule-list" class="schedule-list">
+                                    <div class="schedule-empty">Нет занятий на сегодня</div>
+                                </div>
+                            </div>
+
+                            <hr style="border:0; border-top:1px solid var(--glass-border); margin: 20px 0;">
+
+                            <div class="sch-add-wrap">
+                                <h4 style="margin-bottom: 12px; font-size:1rem;">⚡ Добавить занятие</h4>
+                                <div class="form-group" style="margin-bottom:10px;">
+                                    <label>Код класса</label>
+                                    <input type="text" id="calendar-class-code" value="ALEM-101" placeholder="ALEM-101" style="padding:8px 12px; font-size:0.9rem;">
+                                </div>
+                                <div class="form-group" style="margin-bottom:10px;">
+                                    <label>Название урока</label>
+                                    <input type="text" id="lesson-title" placeholder="Тема урока" style="padding:8px 12px; font-size:0.9rem;">
+                                </div>
+                                <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:15px;">
+                                    <div class="form-group" style="margin-bottom:0;">
+                                        <label>Начало</label>
+                                        <input type="datetime-local" id="lesson-start" style="color:white; color-scheme:dark; padding:8px; font-size:0.8rem;">
+                                    </div>
+                                    <div class="form-group" style="margin-bottom:0;">
+                                        <label>Конец</label>
+                                        <input type="datetime-local" id="lesson-end" style="color:white; color-scheme:dark; padding:8px; font-size:0.8rem;">
+                                    </div>
+                                </div>
+                                <button id="add-lesson-btn" class="btn-primary" style="margin-top: 5px; padding:12px; font-size:0.95rem;">💾 Сохранить урок</button>
+                            </div>
+                        </div>
+
+                        <!-- Right: Month View (Exams/Deadlines) -->
+                        <div class="calendar-main glass-panel" style="padding: 24px; border-radius: 20px;">
+                            <div class="calendar-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+                                <h3 id="calendar-month-name">Месяц Год</h3>
+                                <div style="display: flex; gap: 10px;">
+                                    <button onclick="changeMonth(-1)" class="nav-btn" style="padding: 8px 12px;">◀</button>
+                                    <button onclick="changeMonth(1)" class="nav-btn" style="padding: 8px 12px;">▶</button>
+                                </div>
+                            </div>
+                            <div id="calendar-grid" class="calendar-grid"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ==========================
+                     SUB-VIEW 6: GRADEBOOK (TEACHER)
+                     ========================== -->
+                <div id="t-view-gradebook" class="teacher-subview"
+                    style="display: none; width: 100%; padding: 30px; overflow-y: auto;">
+                    <div style="max-width: 1200px; margin: 0 auto; width: 100%;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px; flex-wrap:wrap; gap:16px;">
+                            <div>
+                                <h2 style="font-size:1.6rem; font-weight:700; background:linear-gradient(135deg,#6366f1,#a855f7); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;">📊 Журнал оценок</h2>
+                                <p style="color:#64748b; font-size:0.85rem; margin-top:4px;">Общая сводка по задачам и экзаменам (Мой предмет)</p>
+                            </div>
+                            <div style="display:flex; gap:12px; align-items:center;">
+                                <input type="text" id="t-gb-class-code" placeholder="ALEM-101"
+                                    style="padding:10px 14px; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.12); border-radius:10px; color:white; outline:none; font-size:0.9rem;"
+                                    value="ALEM-101">
+                                <button id="t-load-gb-btn" class="btn-primary"
+                                    style="padding:10px 22px; margin-top:0; white-space:nowrap; min-width:auto;">Загрузить</button>
+                            </div>
+                        </div>
+
+                        <div id="t-gb-content">
+                            <div class="rank-empty">
+                                <div class="rank-empty-icon">📊</div>
+                                <p>Введите код класса для просмотра журнала</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ==========================
+                     SUB-VIEW 7: AI KAHOOT (TEACHER)
+                     ========================== -->
+                <div id="t-view-kahoot" class="teacher-subview" style="display: none; width: 100%; height: 100%; padding: 0; overflow: hidden; background: linear-gradient(135deg, #0f172a, #1e1b4b);">
+                    
+                    <!-- Kahoot Setup Screen -->
+                    <div id="kahoot-setup" style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; padding: 40px; text-align: center;">
+                        <div style="font-size: 5rem; margin-bottom: 20px; animation: pulse 2s infinite;">🎯</div>
+                        <h1 style="font-size: 3rem; font-weight: 800; color: white; margin-bottom: 10px; font-family: 'Outfit', sans-serif;">Alem <span style="color: #fb7185;">Kahoot</span></h1>
+                        <p style="color: #94a3b8; font-size: 1.1rem; max-width: 500px; margin-bottom: 40px;">Создайте интерактивную викторину на любую тему с помощью ИИ и разделите класс на команды.</p>
+                        
+                        <div class="glass-panel" style="width: 100%; max-width: 500px; padding: 30px; border-radius: 24px; text-align: left; background: rgba(255,255,255,0.03);">
+                            <div class="form-group" style="margin-bottom: 20px;">
+                                <label style="color: #fb7185; font-weight: 600;">Тема викторины</label>
+                                <input type="text" id="kahoot-topic" placeholder="Например: Тайны Солнечной системы" style="padding: 14px; font-size: 1rem; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1);">
+                            </div>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px;">
+                                <div class="form-group" style="margin-bottom: 0;">
+                                    <label style="color: #fb7185; font-weight: 600;">Код класса</label>
+                                    <input type="text" id="kahoot-class-code" value="ALEM-101" style="padding: 12px; font-size: 0.95rem; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1);">
+                                </div>
+                                <div class="form-group" style="margin-bottom: 0;">
+                                    <label style="color: #fb7185; font-weight: 600;">Кол-во команд</label>
+                                    <select id="kahoot-teams-count" style="padding: 12px; font-size: 0.95rem; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); color: white; width: 100%; border-radius: 12px; outline: none;">
+                                        <option value="2">2 команды</option>
+                                        <option value="3">3 команды</option>
+                                        <option value="4">4 команды</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px;">
+                                <div class="form-group" style="margin-bottom: 0;">
+                                    <label style="color: #fb7185; font-weight: 600;">Вопросов</label>
+                                    <select id="kahoot-questions-count" style="padding: 12px; font-size: 0.95rem; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); color: white; width: 100%; border-radius: 12px; outline: none;">
+                                        <option value="5">5 вопр.</option>
+                                        <option value="10">10 вопр.</option>
+                                        <option value="15">15 вопр.</option>
+                                        <option value="20">20 вопр.</option>
+                                    </select>
+                                </div>
+                                <div class="form-group" style="margin-bottom: 0;">
+                                    <label style="color: #fb7185; font-weight: 600;">Время (сек)</label>
+                                    <select id="kahoot-time-limit" style="padding: 12px; font-size: 0.95rem; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); color: white; width: 100%; border-radius: 12px; outline: none;">
+                                        <option value="15">15 сек.</option>
+                                        <option value="30" selected>30 сек.</option>
+                                        <option value="60">60 сек.</option>
+                                        <option value="120">120 сек.</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <button id="kahoot-generate-btn" class="btn-primary" style="width: 100%; padding: 16px; font-size: 1.1rem; background: linear-gradient(135deg, #fb7185, #e11d48); font-weight: 700; border-radius: 16px;">🚀 Сгенерировать и начать</button>
+                        </div>
+                    </div>
+
+                    <!-- Kahoot Lobby (Team Reveal) -->
+                    <div id="kahoot-lobby" style="display: none; flex-direction: column; height: 100%; padding: 40px;">
+                        <h2 style="text-align: center; font-size: 2.5rem; margin-bottom: 40px; color: white;">Команды сформированы!</h2>
+                        <div id="kahoot-teams-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 24px; flex: 1; overflow-y: auto; padding: 10px;">
+                            <!-- Team cards will be injected here -->
+                        </div>
+                        <div style="text-align: center; margin-top: 30px;">
+                            <button id="kahoot-start-game-btn" class="btn-primary" style="padding: 18px 60px; font-size: 1.3rem; border-radius: 20px;">Начать игру ▶</button>
+                        </div>
+                    </div>
+
+                    <!-- Kahoot Game View -->
+                    <div id="kahoot-game" style="display: none; flex-direction: column; height: 100vh; max-height: 100%; position: relative; overflow: hidden;">
+                        <!-- Question Header -->
+                        <div style="background: rgba(0,0,0,0.6); padding: 15px 40px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.1); backdrop-filter: blur(10px); flex-shrink: 0;">
+                            <div style="display: flex; flex-direction: column; gap: 4px;">
+                                <div id="kahoot-current-turn" style="font-size: 1.2rem; font-weight: 800; color: #fb7185; letter-spacing: 0.5px; text-transform: uppercase;">🚩 Ход: ...</div>
+                                <div style="display: flex; gap: 8px;" id="kahoot-team-status">
+                                    <!-- Team bubbles -->
+                                </div>
+                            </div>
+                            
+                            <div style="text-align: center;">
+                                <div id="kahoot-timer" style="font-size: 2.5rem; font-weight: 900; color: white; text-shadow: 0 0 20px rgba(251, 113, 133, 0.4); line-height: 1;">30</div>
+                                <div style="font-size: 0.7rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px;">Секунд</div>
+                            </div>
+
+                            <div style="text-align: right;">
+                                <div id="kahoot-progress" style="color: white; font-weight: 800; font-size: 1.1rem;">1 / 5</div>
+                                <div style="font-size: 0.7rem; color: #94a3b8; text-transform: uppercase;">Вопрос</div>
+                            </div>
+                        </div>
+
+                        <!-- Stage -->
+                        <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px; text-align: center; position: relative;">
+                            <div id="kahoot-explanation-box" style="display: none; position: absolute; top: 20px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.8); padding: 15px 30px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); max-width: 80%; z-index: 20; backdrop-filter: blur(10px); animation: fadeIn 0.4s ease;">
+                                <div style="color: #fb7185; font-size: 0.8rem; text-transform: uppercase; margin-bottom: 5px; font-weight: 700;">💡 Объяснение</div>
+                                <div id="kahoot-explanation-text" style="color: white; font-size: 1.1rem; line-height: 1.4;"></div>
+                            </div>
+
+                            <div id="kahoot-question-text" style="font-size: 2.2rem; font-weight: 700; color: white; margin-bottom: 30px; max-width: 1000px; line-height: 1.2;">...</div>
+                            
+                            <div id="kahoot-options-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; width: 100%; max-width: 1000px;">
+                                <!-- Option cards injected here -->
+                            </div>
+                        </div>
+
+                        <!-- Teacher Controls -->
+                        <div id="kahoot-controls" style="background: rgba(0,0,0,0.6); padding: 20px; display: flex; justify-content: center; gap: 12px; border-top: 1px solid rgba(255,255,255,0.1);">
+                            <div id="kahoot-award-btns" style="display: flex; gap: 8px;">
+                                <!-- Buttons for each team injected here -->
+                            </div>
+                            <button id="kahoot-reveal-btn" class="btn-secondary" style="margin-left: 30px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2);">Показать ответ 👁</button>
+                            <button id="kahoot-skip-btn" class="btn-secondary" style="margin-left: 10px; background: rgba(255,255,255,0.05); color: #94a3b8; border: 1px dashed rgba(255,255,255,0.2);">Пропустить ⏭</button>
+                            <button id="kahoot-next-btn" class="btn-primary" style="margin-left: 10px; display: none;">Следующий вопрос ➡</button>
+                            <button id="kahoot-finish-btn" class="btn-primary" style="margin-left: 10px; display: none; background: linear-gradient(135deg, #10b981, #059669);">Завершить игру 🏆</button>
+                        </div>
+                    </div>
+
+                    <!-- Kahoot Final Scoreboard -->
+                    <div id="kahoot-final" style="display: none; flex-direction: column; align-items: center; justify-content: center; height: 100%; padding: 40px; text-align: center;">
+                        <div style="font-size: 6rem; margin-bottom: 20px;">👑</div>
+                        <h1 style="font-size: 3rem; font-weight: 800; color: white; margin-bottom: 40px;">Победители определены!</h1>
+                        <div id="kahoot-leaderboard" style="width: 100%; max-width: 600px; display: flex; flex-direction: column; gap: 16px;">
+                            <!-- Ranked teams injected here -->
+                        </div>
+                        <button id="kahoot-restart-btn" class="btn-secondary" style="margin-top: 50px; padding: 15px 40px;">Вернуться в начало</button>
+                    </div>
+                </div>
+
+                <!-- Wheel of Fortune View -->
+                <div id="t-view-wheel" class="teacher-subview" style="display: none; width: 100%; height: 100%; padding: 0; overflow: hidden; background: radial-gradient(circle at center, #1e1b4b, #0f172a);">
+                    
+                    <!-- Wheel Setup Screen -->
+                    <div id="wheel-setup" style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; padding: 30px; text-align: center;">
+                        <div style="font-size: 4rem; margin-bottom: 15px; filter: drop-shadow(0 0 20px #fbbf24);">🎡</div>
+                        <h1 style="font-size: 2.2rem; font-weight: 800; color: white; margin-bottom: 10px; font-family: 'Outfit', sans-serif;">Alem <span style="color: #fbbf24;">Fortune Wheel</span></h1>
+                        <p style="color: #94a3b8; font-size: 1rem; max-width: 450px; margin-bottom: 30px;">Вращайте колесо, отвечайте на вопросы и забирайте бонусы!</p>
+                        
+                        <div class="glass-panel" style="padding: 30px; width: 100%; max-width: 500px; border-radius: 24px; background: rgba(255,255,255,0.03);">
+                            <div class="form-group" style="text-align: left; margin-bottom: 20px;">
+                                <label style="color: #fbbf24; font-size: 0.9rem; font-weight: 600;">Тема вопросов</label>
+                                <input type="text" id="wheel-topic" placeholder="Например: История Казахстана" style="padding: 12px; font-size: 0.95rem; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1);">
+                            </div>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px;">
+                                <div class="form-group" style="margin-bottom: 0;">
+                                    <label style="color: #fbbf24; font-size: 0.9rem; font-weight: 600;">Код класса</label>
+                                    <input type="text" id="wheel-class-code" value="ALEM-101" style="padding: 12px; font-size: 0.95rem; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1);">
+                                </div>
+                                <div class="form-group" style="margin-bottom: 0;">
+                                    <label style="color: #fbbf24; font-size: 0.9rem; font-weight: 600;">Команд</label>
+                                    <select id="wheel-teams-count" style="padding: 12px; font-size: 0.95rem; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); color: white; width: 100%; border-radius: 10px; outline: none;">
+                                        <option value="2">2 команды</option>
+                                        <option value="3">3 команды</option>
+                                        <option value="4">4 команды</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <button id="wheel-generate-btn" class="btn-primary" style="width: 100%; padding: 15px; font-size: 1.1rem; background: linear-gradient(135deg, #fbbf24, #d97706); border: none; box-shadow: 0 10px 20px rgba(217, 119, 6, 0.3);">Начать игру 🎰</button>
+                        </div>
+                    </div>
+
+                    <!-- Wheel Lobby (Team Setup) -->
+                    <div id="wheel-lobby" style="display: none; flex-direction: column; align-items: center; padding: 40px; height: 100%; overflow-y: auto;">
+                        <h2 style="font-size: 2.5rem; color: white; margin-bottom: 10px; font-weight: 800;">Команды сформированы!</h2>
+                        <p style="color: #94a3b8; font-size: 1.1rem; margin-bottom: 40px;">Проверьте списки команд перед началом вращения</p>
+                        
+                        <div id="wheel-teams-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 24px; width: 100%; max-width: 1200px;">
+                            <!-- Team cards will be injected here -->
+                        </div>
+                        <div style="text-align: center; margin-top: 30px;">
+                            <button id="wheel-start-game-btn" class="btn-primary" style="padding: 18px 60px; font-size: 1.3rem; border-radius: 20px; background: linear-gradient(135deg, #10b981, #059669); border: none; box-shadow: 0 10px 20px rgba(16, 185, 129, 0.3);">Перейти к колесу ▶</button>
+                        </div>
+                    </div>
+
+                    <!-- Wheel Game Board (Side-by-Side) -->
+                    <div id="wheel-game" style="display: none; height: 100vh; max-height: 100%; width: 100%; position: relative;">
+                        <!-- Left Side: The Wheel -->
+                        <div style="flex: 2; display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; border-right: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2);">
+                            <!-- Pointer -->
+                            <div style="position: absolute; top: 15%; z-index: 10; font-size: 3.5rem; filter: drop-shadow(0 4px 10px rgba(0,0,0,0.5)); transform: translateY(-20px);">🔻</div>
+
+                            <div class="wheel-container" style="position: relative; width: 600px; height: 600px; max-width: 90vh; max-height: 90vh;">
+                                <svg id="wheel-svg-el" viewBox="0 0 100 100" style="width: 100%; height: 100%; transition: transform 4s cubic-bezier(0.15, 0, 0.15, 1); filter: drop-shadow(0 20px 40px rgba(0,0,0,0.5));">
+                                    <circle cx="50" cy="50" r="48" fill="#1e293b" stroke="#fbbf24" stroke-width="2" />
+                                    <g id="wheel-slices-group"></g>
+                                    <circle cx="50" cy="50" r="8" fill="#fbbf24" stroke="#1e1b4b" stroke-width="1" />
+                                    <text x="50" y="52" text-anchor="middle" style="font-size: 4px; font-weight: 900; fill: #1e1b4b;">ALEM</text>
+                                </svg>
+                            </div>
+                        </div>
+
+                        <!-- Right Side: Controls & Questions -->
+                        <div id="wheel-right-sidebar" style="flex: 0.9; max-width: 400px; display: flex; flex-direction: column; background: rgba(15, 23, 42, 0.8); backdrop-filter: blur(20px); border-left: 1px solid rgba(255,255,255,0.1); padding: 25px; padding-bottom: 20px; justify-content: space-between; overflow: hidden;">
+                            
+                            <!-- Header & Stats -->
+                            <div style="flex-shrink: 0;">
+                                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px;">
+                                    <div style="display: flex; flex-direction: column; gap: 4px;">
+                                        <div id="wheel-current-turn" style="font-size: 1.2rem; font-weight: 800; color: #fbbf24; text-transform: uppercase; letter-spacing: 1px;">🚩 Ход: ...</div>
+                                        <div style="display: flex; gap: 8px; flex-wrap: wrap;" id="wheel-team-status"></div>
+                                    </div>
+                                    <div style="text-align: right;">
+                                        <div style="font-size: 0.7rem; color: #94a3b8; text-transform: uppercase;">Раунд</div>
+                                        <div id="wheel-round-text" style="color: white; font-weight: 800; font-size: 1.4rem;">1</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Dynamic Result/Question Area -->
+                            <div id="wheel-sidebar-content" style="flex: 1; display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; overflow-y: auto; padding-right: 10px; margin-bottom: 15px;">
+                                <!-- This will be populated with questions or bonus messages -->
+                                <div style="text-align: center; color: #64748b; margin-top: 50px;">
+                                    <div style="font-size: 3rem; margin-bottom: 15px; opacity: 0.3;">🎰</div>
+                                    <p>Крутите колесо, чтобы получить задание или бонус!</p>
+                                </div>
+                            </div>
+
+                            <!-- Footer Actions -->
+                            <div style="display: flex; flex-direction: column; gap: 15px;">
+                                <button id="wheel-spin-btn" class="btn-primary" style="padding: 20px; font-size: 1.4rem; background: linear-gradient(135deg, #fbbf24, #d97706); border-radius: 20px; border: none; box-shadow: 0 10px 20px rgba(217, 119, 6, 0.3); text-transform: uppercase; font-weight: 900; letter-spacing: 1px; width: 100%;">КРУТИТЬ! 🎡</button>
+                                <button id="wheel-reset-btn" class="btn-secondary" style="background: rgba(255,255,255,0.05); padding: 12px; font-size: 0.9rem; border-radius: 12px;">Вернуться в начало</button>
+                            </div>
+                        </div>
+                    </div> <!-- End of wheel-game -->
+
+                    <!-- Result Modal Overlay -->
+                    <div id="wheel-result-overlay" style="display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); backdrop-filter: blur(10px); z-index: 100; align-items: center; justify-content: center; flex-direction: column;">
+                        <div id="wheel-result-content" style="text-align: center; max-width: 800px; width: 100%; padding: 40px;">
+                            <!-- Result or Question injected here -->
+                        </div>
+                    </div>
+                </div> <!-- End of t-view-wheel -->
+
+            </div> <!-- End of dash-body -->
+        </div> <!-- End of view-section-content -->
+    </div> <!-- End of teacher-view -->
+
+        <!-- ======================= -->
+        <!--   STUDENT DASHBOARD     -->
+        <!-- ======================= -->
+        <div id="student-view" class="view-section dashboard-layout glass-panel">
+            <!-- Sidebar Drawer (Student) -->
+            <div id="s-side-menu" class="side-menu-drawer">
+                <div class="drawer-header">
+                    <div class="drawer-logo">🎓 AlemEdu <span>Student</span></div>
+                </div>
+                <div class="dash-nav student-nav">
+                    <button class="nav-btn active" data-view="s-view-lessons">📚 Мои Уроки</button>
+                    <button class="nav-btn" data-view="s-view-exams">📑 Экзамены</button>
+                    <button class="nav-btn" data-view="s-view-ranking">🏆 Рейтинг</button>
+                    <button class="nav-btn" data-view="s-view-gradebook">📊 Мои Оценки</button>
+                    <button class="nav-btn" data-view="s-view-calendar">📅 Календарь</button>
+                </div>
+            </div>
+
+            <!-- Main Content Area -->
+            <div class="view-section-content" style="display: flex; flex-direction: column;">
+                <div class="dash-header">
+                    <div class="dash-logo">🎓 AlemEdu <span>Student Dashboard</span></div>
+                    
+                    <div class="user-profile">
+                        <div style="display: flex; flex-direction: column; text-align: right;">
+                            <span id="s-user-name" style="font-weight: 600;">Студент</span>
+                            <span id="s-class-badge" style="font-size: 0.8rem; color: #10b981;">Класс: ALEM-101</span>
+                        </div>
+                        <button id="s-logout" class="logout-btn">Выйти</button>
+                    </div>
+                </div>
+
+                <div class="dash-body" style="width: 100%; display: flex; flex-direction:column;">
+
+                <!-- View: Lessons / Subjects (Student) -->
+                <div id="s-view-lessons" class="student-subview active student-workspace" style="overflow-y:auto; padding:15px;">
+                    <div style="margin-bottom:30px;">
+                        <h2 style="font-size:1.8rem; margin-bottom:8px;">📚 Мои Уроки</h2>
+                        <p style="color:#94a3b8;">Выберите предмет, чтобы увидеть материалы и задания</p>
+                    </div>
+
+                    <div class="subject-grid">
+                        <div class="subject-card" onclick="openSubject('Естествознание')" style="--subj-color: #10b981; --subj-bg: rgba(16,185,129,0.1);">
+                            <div class="subj-icon">🌍</div>
+                            <div class="subj-info">
+                                <h3>Естествознание</h3>
+                                <span>Природа и наука</span>
+                            </div>
+                        </div>
+                        <div class="subject-card" onclick="openSubject('Информатика')" style="--subj-color: #3b82f6; --subj-bg: rgba(59,130,246,0.1);">
+                            <div class="subj-icon">💻</div>
+                            <div class="subj-info">
+                                <h3>Информатика</h3>
+                                <span>Цифровой мир</span>
+                            </div>
+                        </div>
+                        <div class="subject-card" onclick="openSubject('Математика')" style="--subj-color: #f59e0b; --subj-bg: rgba(245,158,11,0.1);">
+                            <div class="subj-icon">📐</div>
+                            <div class="subj-info">
+                                <h3>Математика</h3>
+                                <span>Логика и числа</span>
+                            </div>
+                        </div>
+                        <div class="subject-card" onclick="openSubject('История Казахстана')" style="--subj-color: #06b6d4; --subj-bg: rgba(6,182,212,0.1);">
+                            <div class="subj-icon">🇰🇿</div>
+                            <div class="subj-info">
+                                <h3>История Казахстана</h3>
+                                <span>Наследие предков</span>
+                            </div>
+                        </div>
+                        <div class="subject-card" onclick="openSubject('Самопознание')" style="--subj-color: #ec4899; --subj-bg: rgba(236,72,153,0.1);">
+                            <div class="subj-icon">🧘</div>
+                            <div class="subj-info">
+                                <h3>Самопознание</h3>
+                                <span>Внутренний мир</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Subject Detail View (Hidden by default) -->
+                    <div id="subject-detail-view" style="display:none; margin-top:40px;">
+                        <div style="display:flex; align-items:center; gap:16px; margin-bottom:24px;">
+                            <button onclick="closeSubject()" class="btn-secondary" style="padding: 8px 16px;">⬅ Назад</button>
+                            <h2 id="current-subject-title" style="margin:0;">Название предмета</h2>
+                        </div>
+                        <!-- Two-column layout: content on left, compiler on right (for Информатика) -->
+                        <div style="display:flex; gap:24px; align-items:flex-start;">
+                            <div id="subject-content-list" class="tasks-grid" style="flex:1; min-width:0;"></div>
+
+                            <!-- Python Compiler Panel (shown only for Информатика) -->
+                            <div id="py-compiler-panel" style="display:none; flex-direction:column; width:420px; flex-shrink:0; position:sticky; top:20px;">
+                                <div style="background:rgba(15,23,42,0.9); border:1px solid rgba(59,130,246,0.35); border-radius:20px; overflow:hidden; box-shadow: 0 20px 50px rgba(0,0,0,0.5);">
+                                    <!-- Panel Header -->
+                                    <div style="display:flex; align-items:center; justify-content:space-between; padding:14px 18px; background:rgba(59,130,246,0.1); border-bottom:1px solid rgba(59,130,246,0.2);">
+                                        <div style="display:flex; align-items:center; gap:10px;">
+                                            <span style="font-size:1.3rem;">🐍</span>
+                                            <span style="font-weight:700; color:white; font-size:0.95rem;">Python Compiler</span>
+                                            <span style="font-size:0.7rem; color:#60a5fa; background:rgba(59,130,246,0.15); padding:2px 8px; border-radius:20px; border:1px solid rgba(59,130,246,0.3);">Skulpt 1.2</span>
+                                        </div>
+                                        <button id="py-run-btn" onclick="window.runPython()" style="padding:7px 18px; background:linear-gradient(135deg,#3b82f6,#1d4ed8); color:white; border:none; border-radius:8px; font-size:0.85rem; font-weight:700; cursor:pointer; transition:all 0.2s; display:flex; align-items:center; gap:6px;" onmouseover="this.style.opacity='0.85'" onmouseout="this.style.opacity='1'">▶ Запустить</button>
+                                    </div>
+
+                                    <!-- Code Editor -->
+                                    <div style="position:relative;">
+                                        <div style="display:flex; background:rgba(0,0,0,0.4); border-bottom:1px solid rgba(255,255,255,0.05);">
+                                            <!-- Line numbers -->
+                                            <div id="py-line-numbers" style="padding:14px 10px; font-family:'Courier New',monospace; font-size:0.8rem; color:#475569; text-align:right; user-select:none; min-width:34px; line-height:1.6;">1</div>
+                                            <!-- Textarea -->
+                                            <textarea id="py-code-editor"
+                                                placeholder="# Напиши свой Python код здесь...
+print('Привет, мир!')"
+                                                style="flex:1; padding:14px 14px; font-family:'Courier New',monospace; font-size:0.85rem; color:#e2e8f0; background:transparent; border:none; outline:none; resize:none; line-height:1.6; height:240px; tab-size:4; caret-color:#60a5fa;"
+                                                oninput="window.syncLineNumbers()" onkeydown="window.handleEditorKey(event)"
+                                                spellcheck="false">print("Привет, мир!")
+for i in range(5):
+    print(f"  → Шаг {i+1}")</textarea>
+                                        </div>
+                                    </div>
+
+                                    <!-- Output -->
+                                    <div style="border-top:2px solid rgba(59,130,246,0.2); background:rgba(0,0,0,0.5);">
+                                        <div style="padding:8px 14px; display:flex; align-items:center; justify-content:space-between;">
+                                            <span style="font-size:0.75rem; color:#64748b; text-transform:uppercase; letter-spacing:1px; font-weight:600;">Вывод</span>
+                                            <button onclick="document.getElementById('py-output').textContent='';" style="font-size:0.7rem; color:#475569; background:none; border:none; cursor:pointer;">Очистить</button>
+                                        </div>
+                                        <pre id="py-output" style="margin:0; padding:0 14px 14px; font-family:'Courier New',monospace; font-size:0.82rem; color:#a3e635; line-height:1.6; white-space:pre-wrap; min-height:80px; max-height:160px; overflow-y:auto;">Ready.</pre>
+                                    </div>
+
+                                    <!-- Quick Snippets -->
+                                    <div style="padding:12px 14px; border-top:1px solid rgba(255,255,255,0.05); background:rgba(255,255,255,0.02);">
+                                        <div style="font-size:0.7rem; color:#64748b; margin-bottom:8px; text-transform:uppercase; letter-spacing:1px;">Быстрые примеры</div>
+                                        <div style="display:flex; flex-wrap:wrap; gap:6px;">
+                                            <button onclick="window.insertSnippet('loop')" style="padding:4px 10px; font-size:0.75rem; background:rgba(59,130,246,0.1); color:#60a5fa; border:1px solid rgba(59,130,246,0.25); border-radius:6px; cursor:pointer;">for loop</button>
+                                            <button onclick="window.insertSnippet('func')" style="padding:4px 10px; font-size:0.75rem; background:rgba(139,92,246,0.1); color:#a78bfa; border:1px solid rgba(139,92,246,0.25); border-radius:6px; cursor:pointer;">функция</button>
+                                            <button onclick="window.insertSnippet('list')" style="padding:4px 10px; font-size:0.75rem; background:rgba(16,185,129,0.1); color:#34d399; border:1px solid rgba(16,185,129,0.25); border-radius:6px; cursor:pointer;">список</button>
+                                            <button onclick="window.insertSnippet('dict')" style="padding:4px 10px; font-size:0.75rem; background:rgba(245,158,11,0.1); color:#fbbf24; border:1px solid rgba(245,158,11,0.25); border-radius:6px; cursor:pointer;">словарь</button>
+                                            <button onclick="window.insertSnippet('class')" style="padding:4px 10px; font-size:0.75rem; background:rgba(244,63,94,0.1); color:#fb7185; border:1px solid rgba(244,63,94,0.25); border-radius:6px; cursor:pointer;">класс</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Natural Science AI Chat Panel (shown only for Естествознание) -->
+                            <div id="ns-chat-panel" style="display:none; flex-direction:column; width:450px; flex-shrink:0; position:sticky; top:20px; height: 600px; max-height: 80vh;">
+                                <div style="background:rgba(15,23,42,0.9); border:1px solid rgba(16,185,129,0.35); border-radius:20px; overflow:hidden; box-shadow: 0 20px 50px rgba(0,0,0,0.5); display: flex; flex-direction: column; height: 100%;">
+                                    <!-- Panel Header -->
+                                    <div style="display:flex; align-items:center; justify-content:space-between; padding:14px 18px; background:rgba(16,185,129,0.1); border-bottom:1px solid rgba(16,185,129,0.2);">
+                                        <div style="display:flex; align-items:center; gap:10px;">
+                                            <span style="font-size:1.3rem;">🌿</span>
+                                            <span style="font-weight:700; color:white; font-size:0.95rem;">ИИ-Натуралист</span>
+                                            <span style="font-size:0.75rem; color:#34d399; background:rgba(16,185,129,0.15); padding:2px 8px; border-radius:20px;">Alem AI</span>
+                                        </div>
+                                    </div>
+
+                                    <!-- Chat Messages -->
+                                    <div id="ns-chat-messages" style="flex:1; overflow-y:auto; padding:20px; display:flex; flex-direction:column; gap:12px; scroll-behavior: smooth; background: rgba(0,0,0,0.2);">
+                                        <div style="align-self:flex-start; background:rgba(255,255,255,0.05); padding:12px 18px; border-radius:18px 18px 18px 4px; font-size:0.95rem; color:#e2e8f0; max-width:85%; line-height:1.6; box-shadow: 0 4px 20px rgba(0,0,0,0.3);">
+                                            Привет! Я твой ИИ-помощник по естествознанию. О чем хочешь узнать? Я могу объяснить природные явления и нарисовать их для тебя! 🌍
+                                        </div>
+                                    </div>
+
+                                    <!-- Chat Input -->
+                                    <div style="padding:15px; border-top:1px solid rgba(255,255,255,0.05); display:flex; gap:10px; background:rgba(15,23,42,0.5);">
+                                        <input type="text" id="ns-chat-input" placeholder="Спроси о природе..." style="flex:1; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.1); border-radius:12px; padding:12px 16px; color:white; font-size:0.9rem; outline:none;" onkeydown="if(event.key==='Enter') window.sendNsMessage()">
+                                        <button onclick="window.sendNsMessage()" style="width:45px; height:45px; border-radius:12px; background:linear-gradient(135deg,#10b981,#059669); border:none; color:white; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:0.2s;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+                                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Mathematics Helper Panel (shown only for Математика) -->
+                            <div id="math-helper-panel" style="display:none; flex-direction:column; width:450px; flex-shrink:0; position:sticky; top:20px; height: 600px; max-height: 80vh;">
+                                <div style="background:rgba(15,23,42,0.9); border:1px solid rgba(139,92,246,0.35); border-radius:24px; overflow:hidden; box-shadow: 0 20px 50px rgba(0,0,0,0.5); display: flex; flex-direction: column; height: 100%;">
+                                    <!-- Panel Tabs -->
+                                    <div style="display:grid; grid-template-columns:1fr 1fr; background:rgba(0,0,0,0.2); border-bottom:1px solid rgba(255,255,255,0.05); padding:4px;">
+                                        <button onclick="window.switchMathTab('calc')" id="math-tab-calc" style="padding:12px; border:none; background:rgba(139,92,246,0.15); color:white; font-weight:700; border-radius:18px; cursor:pointer; font-size:0.9rem; transition:0.3s;">🧮 Калькулятор</button>
+                                        <button onclick="window.switchMathTab('formulas')" id="math-tab-formulas" style="padding:12px; border:none; background:transparent; color:#94a3b8; font-weight:600; border-radius:18px; cursor:pointer; font-size:0.9rem; transition:0.3s;">📐 Формулы</button>
+                                    </div>
+
+                                    <!-- Calculator Section -->
+                                    <div id="math-calc-view" style="flex:1; display:flex; flex-direction:column; padding:20px; gap:15px;">
+                                        <div id="calc-display" style="background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.1); border-radius:16px; padding:18px; color:white; font-family:'Courier New',monospace; font-size:1.6rem; text-align:right; overflow-x:auto; min-height:70px; display:flex; align-items:center; justify-content:flex-end;">0</div>
+                                        <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:10px; flex:1;">
+                                            <!-- Row 1 -->
+                                            <button onclick="window.calcAction('C')" style="background:rgba(239,68,68,0.15); color:#ef4444; border:1px solid rgba(239,68,68,0.3); border-radius:12px; padding:15px; font-weight:bold; cursor:pointer;">AC</button>
+                                            <button onclick="window.calcAction('(')" style="background:rgba(255,255,255,0.05); color:white; border:1px solid rgba(255,255,255,0.1); border-radius:12px; cursor:pointer;">(</button>
+                                            <button onclick="window.calcAction(')')" style="background:rgba(255,255,255,0.05); color:white; border:1px solid rgba(255,255,255,0.1); border-radius:12px; cursor:pointer;">)</button>
+                                            <button onclick="window.calcAction('/')" style="background:rgba(139,92,246,0.2); color:#a78bfa; border:1px solid rgba(139,92,246,0.3); border-radius:12px; cursor:pointer;">÷</button>
+                                            <!-- Row 2 -->
+                                            <button onclick="window.calcAction('7')" style="background:rgba(255,255,255,0.03); color:white; border:1px solid rgba(255,255,255,0.05); border-radius:12px; padding:15px; cursor:pointer;">7</button>
+                                            <button onclick="window.calcAction('8')" style="background:rgba(255,255,255,0.03); color:white; border:1px solid rgba(255,255,255,0.05); border-radius:12px; cursor:pointer;">8</button>
+                                            <button onclick="window.calcAction('9')" style="background:rgba(255,255,255,0.03); color:white; border:1px solid rgba(255,255,255,0.05); border-radius:12px; cursor:pointer;">9</button>
+                                            <button onclick="window.calcAction('*')" style="background:rgba(139,92,246,0.2); color:#a78bfa; border:1px solid rgba(139,92,246,0.3); border-radius:12px; cursor:pointer;">×</button>
+                                            <!-- Row 3 -->
+                                            <button onclick="window.calcAction('4')" style="background:rgba(255,255,255,0.03); color:white; border:1px solid rgba(255,255,255,0.05); border-radius:12px; padding:15px; cursor:pointer;">4</button>
+                                            <button onclick="window.calcAction('5')" style="background:rgba(255,255,255,0.03); color:white; border:1px solid rgba(255,255,255,0.05); border-radius:12px; cursor:pointer;">5</button>
+                                            <button onclick="window.calcAction('6')" style="background:rgba(255,255,255,0.03); color:white; border:1px solid rgba(255,255,255,0.05); border-radius:12px; cursor:pointer;">6</button>
+                                            <button onclick="window.calcAction('-')" style="background:rgba(139,92,246,0.2); color:#a78bfa; border:1px solid rgba(139,92,246,0.3); border-radius:12px; cursor:pointer;">−</button>
+                                            <!-- Row 4 -->
+                                            <button onclick="window.calcAction('1')" style="background:rgba(255,255,255,0.03); color:white; border:1px solid rgba(255,255,255,0.05); border-radius:12px; padding:15px; cursor:pointer;">1</button>
+                                            <button onclick="window.calcAction('2')" style="background:rgba(255,255,255,0.03); color:white; border:1px solid rgba(255,255,255,0.05); border-radius:12px; cursor:pointer;">2</button>
+                                            <button onclick="window.calcAction('3')" style="background:rgba(255,255,255,0.03); color:white; border:1px solid rgba(255,255,255,0.05); border-radius:12px; cursor:pointer;">3</button>
+                                            <button onclick="window.calcAction('+')" style="background:rgba(139,92,246,0.2); color:#a78bfa; border:1px solid rgba(139,92,246,0.3); border-radius:12px; cursor:pointer;">+</button>
+                                            <!-- Row 5 -->
+                                            <button onclick="window.calcAction('0')" style="background:rgba(255,255,255,0.03); color:white; border:1px solid rgba(255,255,255,0.05); border-radius:12px; padding:15px; cursor:pointer; grid-column: span 2;">0</button>
+                                            <button onclick="window.calcAction('.')" style="background:rgba(255,255,255,0.03); color:white; border:1px solid rgba(255,255,255,0.05); border-radius:12px; cursor:pointer;">.</button>
+                                            <button onclick="window.calculateResult()" style="background:linear-gradient(135deg,#8b5cf6,#6366f1); color:white; border:none; border-radius:12px; font-weight:bold; cursor:pointer;">=</button>
+                                        </div>
+                                        <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:8px;">
+                                            <button onclick="window.calcAction('sin(')" style="font-size:0.75rem; background:rgba(255,255,255,0.05); color:#94a3b8; border:1px solid rgba(255,255,255,0.1); border-radius:8px; padding:8px; cursor:pointer;">sin</button>
+                                            <button onclick="window.calcAction('cos(')" style="font-size:0.75rem; background:rgba(255,255,255,0.05); color:#94a3b8; border:1px solid rgba(255,255,255,0.1); border-radius:8px; padding:8px; cursor:pointer;">cos</button>
+                                            <button onclick="window.calcAction('tan(')" style="font-size:0.75rem; background:rgba(255,255,255,0.05); color:#94a3b8; border:1px solid rgba(255,255,255,0.1); border-radius:8px; padding:8px; cursor:pointer;">tan</button>
+                                            <button onclick="window.calcAction('sqrt(')" style="font-size:0.75rem; background:rgba(255,255,255,0.05); color:#94a3b8; border:1px solid rgba(255,255,255,0.1); border-radius:8px; padding:8px; cursor:pointer;">√</button>
+                                        </div>
+                                    </div>
+
+                                    <!-- Formulas Section -->
+                                    <div id="math-formulas-view" style="display:none; flex:1; overflow-y:auto; padding:20px; display:flex; flex-direction:column; gap:16px;">
+                                        <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.1); border-radius:16px; padding:16px;">
+                                            <h4 style="color:#a78bfa; margin-bottom:12px; font-size:1rem;">Algebra: Quadratic Equation</h4>
+                                            <div style="background:rgba(0,0,0,0.2); padding:15px; border-radius:10px; text-align:center; font-size:1.1rem; color:white;">
+                                                \( ax^2 + bx + c = 0 \)
+                                                <br>
+                                                \( x = \frac{-b \pm \sqrt{b^2 - 4ac}}{2a} \)
+                                            </div>
+                                        </div>
+                                        <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.1); border-radius:16px; padding:16px;">
+                                            <h4 style="color:#a78bfa; margin-bottom:12px; font-size:1rem;">Geometry: Area & Volume</h4>
+                                            <div style="background:rgba(0,0,0,0.2); padding:15px; border-radius:10px; text-align:center; font-size:1rem; color:white; display:grid; gap:10px;">
+                                                <div>Circle Area: \( A = \pi r^2 \)</div>
+                                                <div>Sphere Volume: \( V = \frac{4}{3} \pi r^3 \)</div>
+                                                <div>Pythagorean: \( a^2 + b^2 = c^2 \)</div>
+                                            </div>
+                                        </div>
+                                        <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.1); border-radius:16px; padding:16px;">
+                                            <h4 style="color:#a78bfa; margin-bottom:12px; font-size:1rem;">Trigonometry</h4>
+                                            <div style="background:rgba(0,0,0,0.2); padding:15px; border-radius:10px; text-align:center; font-size:1rem; color:white;">
+                                                \( \sin^2 \theta + \cos^2 \theta = 1 \)
+                                                <br>
+                                                \( \tan \theta = \frac{\sin \theta}{\cos \theta} \)
+                                            </div>
+                                        </div>
+
+                                        <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.1); border-radius:16px; padding:16px;">
+                                            <h4 style="color:#a78bfa; margin-bottom:12px; font-size:1rem;">Algebra: Logarithms</h4>
+                                            <div style="background:rgba(0,0,0,0.2); padding:15px; border-radius:10px; text-align:center; font-size:1rem; color:white; display:grid; gap:8px;">
+                                                <div>\( \log_b(xy) = \log_b x + \log_b y \)</div>
+                                                <div>\( \log_b(x/y) = \log_b x - \log_b y \)</div>
+                                                <div>\( \log_b(x^n) = n \log_b x \)</div>
+                                            </div>
+                                        </div>
+
+                                        <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.1); border-radius:16px; padding:16px;">
+                                            <h4 style="color:#a78bfa; margin-bottom:12px; font-size:1rem;">Calculus: Basic Rules</h4>
+                                            <div style="background:rgba(0,0,0,0.2); padding:15px; border-radius:10px; text-align:center; font-size:1rem; color:white; display:grid; gap:8px;">
+                                                <div>Power Rule: \( \frac{d}{dx} x^n = nx^{n-1} \)</div>
+                                                <div>Integration: \( \int x^n \, dx = \frac{x^{n+1}}{n+1} + C \)</div>
+                                                <div>Exponential: \( \frac{d}{dx} e^x = e^x \)</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Kazakhstan History Timeline Panel (shown only for История Казахстана) -->
+                            <div id="history-timeline-panel" style="display:none; flex-direction:column; width:450px; flex-shrink:0; position:sticky; top:20px; height: 600px; max-height: 80vh;">
+                                <div style="background:rgba(15,23,42,0.9); border:1px solid rgba(245,158,11,0.35); border-radius:24px; overflow:hidden; box-shadow: 0 20px 50px rgba(0,0,0,0.5); display: flex; flex-direction: column; height: 100%;">
+                                    <!-- Panel Header -->
+                                    <div style="padding:18px; background:rgba(245,158,11,0.1); border-bottom:1px solid rgba(245,158,11,0.2); display:flex; align-items:center; gap:12px;">
+                                        <span style="font-size:1.4rem;">🇰🇿</span>
+                                        <span style="font-weight:700; color:white; font-size:1rem;">Хронология Казахстана</span>
+                                    </div>
+
+                                    <!-- Timeline Container -->
+                                    <div style="flex:1; overflow-y:auto; padding:24px; position:relative;">
+                                        <!-- Vertical Line -->
+                                        <div style="position:absolute; left:39px; top:24px; bottom:24px; width:2px; background:linear-gradient(to bottom, transparent, rgba(245,158,11,0.4), transparent); border-left:2px dashed rgba(245,158,11,0.2);"></div>
+
+                                        <!-- Timeline Items -->
+                                        <div style="display:flex; flex-direction:column; gap:32px;">
+                                            <!-- Item: Formation of Kazakh Khanate -->
+                                            <div style="display:flex; gap:20px; position:relative; z-index:2;">
+                                                <div style="width:32px; height:32px; border-radius:50%; background:#f59e0b; border:4px solid rgba(15,23,42,1); flex-shrink:0; box-shadow:0 0 15px rgba(245,158,11,0.5); display:flex; align-items:center; justify-content:center; font-size:0.7rem; color:white; font-weight:bold;">1465</div>
+                                                <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:16px; padding:16px; flex:1;">
+                                                    <h4 style="color:#fbbf24; margin-bottom:6px; font-size:0.95rem;">Образование Казахского ханства</h4>
+                                                    <p style="font-size:0.85rem; color:#94a3b8; line-height:1.4;">Основано Кереем и Жанибеком в долинах Шу и Таласа.</p>
+                                                </div>
+                                            </div>
+
+                                            <!-- Item: Joining Russia -->
+                                            <div style="display:flex; gap:20px; position:relative; z-index:2;">
+                                                <div style="width:32px; height:32px; border-radius:50%; background:#f59e0b; border:4px solid rgba(15,23,42,1); flex-shrink:0; box-shadow:0 0 10px rgba(245,158,11,0.3); display:flex; align-items:center; justify-content:center; font-size:0.7rem; color:white; font-weight:bold;">1731</div>
+                                                <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:16px; padding:16px; flex:1;">
+                                                    <h4 style="color:#fbbf24; margin-bottom:6px; font-size:0.95rem;">Присоединение к России</h4>
+                                                    <p style="font-size:0.85rem; color:#94a3b8; line-height:1.4;">Младший жуз во главе с Абулхаир-ханом принимает российское подданство.</p>
+                                                </div>
+                                            </div>
+
+                                            <!-- Item: Alash Orda -->
+                                            <div style="display:flex; gap:20px; position:relative; z-index:2;">
+                                                <div style="width:32px; height:32px; border-radius:50%; background:#3b82f6; border:4px solid rgba(15,23,42,1); flex-shrink:0; box-shadow:0 0 10px rgba(59,130,246,0.3); display:flex; align-items:center; justify-content:center; font-size:0.7rem; color:white; font-weight:bold;">1917</div>
+                                                <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:16px; padding:16px; flex:1;">
+                                                    <h4 style="color:#60a5fa; margin-bottom:6px; font-size:0.95rem;">Правительство Алаш Орда</h4>
+                                                    <p style="font-size:0.85rem; color:#94a3b8; line-height:1.4;">Провозглашение автономии Алаш под руководством Алихана Букейханова.</p>
+                                                </div>
+                                            </div>
+
+                                            <!-- Item: Independence -->
+                                            <div style="display:flex; gap:20px; position:relative; z-index:2;">
+                                                <div style="width:32px; height:32px; border-radius:50%; background:#10b981; border:4px solid rgba(15,23,42,1); flex-shrink:0; box-shadow:0 0 15px rgba(16,185,129,0.5); display:flex; align-items:center; justify-content:center; font-size:0.6rem; color:white; font-weight:bold;">1991</div>
+                                                <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:16px; padding:16px; flex:1;">
+                                                    <h4 style="color:#34d399; margin-bottom:6px; font-size:0.95rem;">День Независимости</h4>
+                                                    <p style="font-size:0.85rem; color:#94a3b8; line-height:1.4;">16 декабря Верховный Совет принял Закон о государственной независимости Республики Казахстан.</p>
+                                                </div>
+                                            </div>
+
+                                            <!-- Item: Capital Relocation -->
+                                            <div style="display:flex; gap:20px; position:relative; z-index:2;">
+                                                <div style="width:32px; height:32px; border-radius:50%; background:#10b981; border:4px solid rgba(15,23,42,1); flex-shrink:0; box-shadow:0 0 10px rgba(16,185,129,0.3); display:flex; align-items:center; justify-content:center; font-size:0.6rem; color:white; font-weight:bold;">1997</div>
+                                                <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:16px; padding:16px; flex:1;">
+                                                    <h4 style="color:#34d399; margin-bottom:6px; font-size:0.95rem;">Перенос столицы</h4>
+                                                    <p style="font-size:0.85rem; color:#94a3b8; line-height:1.4;">Официальный перенос столицы из Алматы в Акмолу (ныне Астана).</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Self-Knowledge Mental Wellness Panel (shown only for Самопознание) -->
+                            <div id="self-knowledge-panel" style="display:none; flex-direction:column; width:450px; flex-shrink:0; position:sticky; top:20px; height: 600px; max-height: 80vh;">
+                                <div style="background:rgba(15,23,42,0.9); border:1px solid rgba(20,184,166,0.35); border-radius:24px; overflow:hidden; box-shadow: 0 20px 50px rgba(0,0,0,0.5); display: flex; flex-direction: column; height: 100%;">
+                                    <!-- Panel Header -->
+                                    <div style="padding:18px; background:rgba(20,184,166,0.1); border-bottom:1px solid rgba(20,184,166,0.2); display:flex; align-items:center; gap:12px;">
+                                        <span style="font-size:1.4rem;">🧘</span>
+                                        <span style="font-weight:700; color:white; font-size:1rem;">Ментальное благополучие</span>
+                                    </div>
+
+                                    <!-- Wellness Content -->
+                                    <div id="wellness-main-content" style="flex:1; overflow-y:auto; padding:20px; display:flex; flex-direction:column; gap:20px;">
+                                        <!-- Test Selection -->
+                                        <div id="psy-test-menu" style="display:flex; flex-direction:column; gap:12px;">
+                                            <h4 style="color:#64748b; font-size:0.85rem; margin:0;">Доступные тесты</h4>
+                                            
+                                            <button onclick="window.startPsyTest('anxiety')" style="background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:16px; padding:15px; display:flex; align-items:center; gap:15px; cursor:pointer; transition:0.3s; text-align:left;" onmouseover="this.style.background='rgba(255,255,255,0.08)'" onmouseout="this.style.background='rgba(255,255,255,0.05)'">
+                                                <div style="width:40px; height:40px; border-radius:12px; background:rgba(239,68,68,0.15); color:#f87171; display:flex; align-items:center; justify-content:center; font-size:1.2rem;">🌪️</div>
+                                                <div style="flex:1;">
+                                                    <div style="color:white; font-weight:600; font-size:0.9rem;">Тест на уровень тревожности</div>
+                                                    <div style="color:#64748b; font-size:0.75rem;">5 вопросов • Проверка текущего состояния</div>
+                                                </div>
+                                            </button>
+
+                                            <button onclick="window.startPsyTest('safety')" style="background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:16px; padding:15px; display:flex; align-items:center; gap:15px; cursor:pointer; transition:0.3s; text-align:left;" onmouseover="this.style.background='rgba(255,255,255,0.08)'" onmouseout="this.style.background='rgba(255,255,255,0.05)'">
+                                                <div style="width:40px; height:40px; border-radius:12px; background:rgba(59,130,246,0.15); color:#60a5fa; display:flex; align-items:center; justify-content:center; font-size:1.2rem;">🛡️</div>
+                                                <div style="flex:1;">
+                                                    <div style="color:white; font-weight:600; font-size:0.9rem;">Безопасность в школе</div>
+                                                    <div style="color:#64748b; font-size:0.75rem;">5 вопросов • Буллинг и комфорт в классе</div>
+                                                </div>
+                                            </button>
+                                        </div>
+
+                                        <!-- Interactive Quiz View -->
+                                        <div id="psy-quiz-view" style="display:none; flex-direction:column; gap:20px; background:rgba(0,0,0,0.2); border:1px solid rgba(255,255,255,0.05); border-radius:20px; padding:20px;">
+                                            <div style="display:flex; justify-content:space-between; align-items:center;">
+                                                <span id="psy-quiz-title" style="color:#2dd4bf; font-weight:700; font-size:0.9rem;">Тест</span>
+                                                <button onclick="window.closePsyQuiz()" style="background:none; border:none; color:#64748b; cursor:pointer;">✕</button>
+                                            </div>
+                                            
+                                            <div id="psy-question-container">
+                                                <p id="psy-question-text" style="color:white; font-size:1rem; line-height:1.5; min-height:60px;">Загрузка вопроса...</p>
+                                                <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:20px;">
+                                                    <button onclick="window.submitPsyAnswer(0)" style="background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:12px; padding:12px; color:white; cursor:pointer; font-size:0.85rem;">Никогда</button>
+                                                    <button onclick="window.submitPsyAnswer(1)" style="background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:12px; padding:12px; color:white; cursor:pointer; font-size:0.85rem;">Редко</button>
+                                                    <button onclick="window.submitPsyAnswer(2)" style="background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:12px; padding:12px; color:white; cursor:pointer; font-size:0.85rem;">Иногда</button>
+                                                    <button onclick="window.submitPsyAnswer(3)" style="background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:12px; padding:12px; color:white; cursor:pointer; font-size:0.85rem;">Часто</button>
+                                                </div>
+                                            </div>
+                                            
+                                            <div style="height:4px; background:rgba(255,255,255,0.05); border-radius:2px; overflow:hidden;">
+                                                <div id="psy-quiz-progress" style="width:20%; height:100%; background:#2dd4bf; transition:0.3s;"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Ethics Disclaimer -->
+                                    <div style="padding:15px; background:rgba(0,0,0,0.3); border-top:1px solid rgba(255,255,255,0.05); font-size:0.75rem; color:#64748b; line-height:1.4;">
+                                        ⚠️ Результаты тестов носят ознакомительный характер и не являются диагнозом. При необходимости обратитесь к школьному психологу.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Dedicated Lesson Workspace (Hidden by default) -->
+                    <div id="s-view-lesson-workspace" style="display:none; flex-direction:column; margin-top:40px;">
+                        <div style="display:flex; align-items:center; gap:16px; margin-bottom:24px;">
+                            <button onclick="closeLessonWorkspace()" class="btn-secondary" style="padding: 8px 16px;">⬅ Назад к предмету</button>
+                            <h2 id="lesson-workspace-title" style="margin:0; font-size:1.8rem; background:linear-gradient(135deg,#e2e8f0,#94a3b8); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;">Название урока</h2>
+                        </div>
+                        
+                        <div style="display:flex; gap:24px; flex-wrap:wrap; align-items: stretch;">
+                            <!-- Left Column: Video & Test -->
+                            <div style="flex:2; min-width:300px; display:flex; flex-direction:column; gap:24px;">
+                                <!-- Video Player -->
+                                <div style="background:black; border-radius:16px; overflow:hidden; border:1px solid rgba(255,255,255,0.05); box-shadow:0 10px 30px rgba(0,0,0,0.5); aspect-ratio:16/9; width:100%;">
+                                    <iframe id="lesson-workspace-iframe" style="width:100%; height:100%; display:block; border:none;" allowfullscreen allow="autoplay; encrypted-media; picture-in-picture" referrerpolicy="strict-origin-when-cross-origin"></iframe>
+                                </div>
+                                
+                                <!-- AI Test Placeholder -->
+                                <div style="background:linear-gradient(180deg, rgba(16,185,129,0.05) 0%, rgba(16,185,129,0.02) 100%); border:1px solid rgba(16,185,129,0.2); padding:30px; border-radius:16px; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; min-height:150px; position:relative; overflow:hidden;">
+                                    <div style="position:absolute; top:-20px; left:-20px; font-size:6rem; opacity:0.05; pointer-events:none;">🤖</div>
+                                    <h4 style="color:#34d399; font-size:1.2rem; margin-bottom:8px;">📝 Тест по уроку (Скоро)</h4>
+                                    <p style="color:#94a3b8; font-size:0.9rem; max-width:80%;">Здесь ИИ автоматически сгенерирует тест для проверки ваших знаний после просмотра видео.</p>
+                                </div>
+                            </div>
+                            
+                            <!-- Right Column: AI Conspect -->
+                            <div style="flex:1; min-width:250px;">
+                                <div style="background:linear-gradient(180deg, rgba(99,102,241,0.08) 0%, rgba(99,102,241,0.02) 100%); border:1px solid rgba(99,102,241,0.25); padding:30px; border-radius:16px; height:100%; display:flex; flex-direction:column; position:relative; overflow:hidden;">
+                                    <div style="position:absolute; bottom:-10px; right:-10px; font-size:8rem; opacity:0.05; pointer-events:none;">✨</div>
+                                    <h4 style="color:#818cf8; font-size:1.3rem; margin-bottom:12px; border-bottom:1px solid rgba(129,140,248,0.2); padding-bottom:12px;">✨ ИИ-Конспект</h4>
+                                    <div style="flex:1; display:flex; align-items:center; justify-content:center; text-align:center;">
+                                        <p style="color:#94a3b8; font-size:0.95rem; line-height:1.6;">Вскоре наш ИИ будет автоматически создавать подробный и структурированный конспект (summary) по содержимому этого видеоурока, выделяя главные тезисы.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- View: Class Ranking (Student) -->
+                <div id="s-view-ranking" class="student-subview student-workspace" style="display:none; overflow-y:auto;">
+                    <div class="rank-view-wrap">
+                        <div style="margin-bottom:24px;">
+                            <h2 style="font-size:1.6rem; font-weight:700; background:linear-gradient(135deg,#fbbf24,#f59e0b); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;">🏆 Рейтинг моего класса</h2>
+                            <p style="color:#64748b; font-size:0.85rem; margin-top:4px;">GPA = задачи 50% + экзамены 50%</p>
+                        </div>
+
+                        <!-- Stats row -->
+                        <div class="rank-stats-row" id="s-rank-stats" style="display:none;">
+                            <div class="rank-stat-card">
+                                <div class="stat-num" id="s-rs-myrank" style="color:#fbbf24;">—</div>
+                                <div class="stat-lbl">Моё место</div>
+                            </div>
+                            <div class="rank-stat-card">
+                                <div class="stat-num" id="s-rs-mygpa" style="color:#10b981;">—</div>
+                                <div class="stat-lbl">Мой GPA</div>
+                            </div>
+                            <div class="rank-stat-card">
+                                <div class="stat-num" id="s-rs-students" style="color:#818cf8;">—</div>
+                                <div class="stat-lbl">Учеников</div>
+                            </div>
+                            <div class="rank-stat-card">
+                                <div class="stat-num" id="s-rs-avg-gpa" style="color:#94a3b8;">—</div>
+                                <div class="stat-lbl">Средний GPA</div>
+                            </div>
+                        </div>
+
+                        <div id="s-rank-content">
+                            <div class="rank-empty">
+                                <div class="rank-empty-icon">⏳</div>
+                                <p>Загрузка рейтинга...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- View: Calendar (Student) -->
+                <div id="s-view-calendar" class="student-subview student-workspace" style="display:none; overflow-y:auto; padding: 40px 15px 15px 15px;">
+                    <div class="calendar-layout">
+                        <!-- Left Sidebar: Today Schedule -->
+                        <div class="calendar-sidebar schedule-panel glass-panel" style="padding: 24px; border-radius: 20px;">
+                            <h3 style="margin-bottom: 15px;">📅 Расписание на сегодня</h3>
+                            <div id="s-schedule-list" class="schedule-list">
+                                <div class="schedule-empty">На сегодня уроков нет. Отдыхайте! 😊</div>
+                            </div>
+                        </div>
+
+                        <div class="calendar-main glass-panel" style="padding: 24px; border-radius: 20px;">
+                            <div class="calendar-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+                                <h3 id="s-calendar-month-name">Месяц Год</h3>
+                                <div style="display: flex; gap: 10px;">
+                                    <button onclick="changeMonth(-1)" class="nav-btn" style="padding: 8px 12px;">◀</button>
+                                    <button onclick="changeMonth(1)" class="nav-btn" style="padding: 8px 12px;">▶</button>
+                                </div>
+                            </div>
+                            <div id="s-calendar-grid" class="calendar-grid"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ==========================
+                     SUB-VIEW: GRADEBOOK (STUDENT)
+                     ========================== -->
+                <div id="s-view-gradebook" class="student-subview student-workspace" style="display:none; overflow-y:auto; padding: 15px;">
+                    <div style="margin-bottom:30px;">
+                        <h2 style="font-size:1.8rem; margin-bottom:8px; background:linear-gradient(135deg,#3b82f6,#2dd4bf); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;">📊 Мои Оценки</h2>
+                        <p style="color:#94a3b8;">Общий прогресс по всем предметам</p>
+                    </div>
+
+                    <div id="s-gb-content">
+                        <div class="rank-empty">
+                            <div class="rank-empty-icon" style="opacity:1; animation:pulse-dot 1s infinite;">⏳</div>
+                            <p>Загрузка оценок...</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- View: Exams -->
+                <div id="s-view-exams" class="student-subview student-workspace" style="display:none;">
+                    <h2>Активные экзамены</h2>
+                    <div class="tasks-grid" id="student-exams">
+                        <!-- Exam cards will be inserted here -->
+                    </div>
+
+                    <!-- =============================================
+                         EXAM ROOM - Full Proctoring Overlay
+                         ============================================= -->
+                    <div id="take-exam-overlay"
+                        style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:#060913; z-index:9999; overflow:hidden; flex-direction:column;">
+
+                        <!-- Fullscreen Lock Screen -->
+                        <div id="fullscreen-lock"
+                            style="display:none; position:absolute; top:0; left:0; width:100%; height:100%; background:rgba(6,9,19,0.97); z-index:200; flex-direction:column; justify-content:center; align-items:center; text-align:center; gap:20px;">
+                            <div style="font-size:4rem;">🔒</div>
+                            <h2 style="color:#ef4444; font-size:1.8rem;">Тест на паузе</h2>
+                            <p style="color:#94a3b8; max-width:400px;">Вы вышли из полноэкранного режима. Для
+                                продолжения экзамена необходимо вернуться в полный экран.</p>
+                            <button id="reenter-fullscreen-btn" class="btn-primary"
+                                style="padding:14px 32px; font-size:1rem;">🖥️ Вернуться в полный экран</button>
+                        </div>
+
+                        <!-- Exam Header -->
+                        <div id="exam-room-header"
+                            style="display:flex; justify-content:space-between; align-items:center; padding:14px 28px; background:rgba(15,23,42,0.9); border-bottom:1px solid rgba(255,255,255,0.08); flex-shrink:0;">
+                            <div style="display:flex; align-items:center; gap:16px;">
+                                <div style="font-size:1.1rem; font-weight:700; color:#f8fafc;" id="exam-room-title">
+                                    Экзамен</div>
+                                <div
+                                    style="font-size:0.8rem; padding:4px 10px; background:rgba(16,185,129,0.15); color:#10b981; border-radius:6px; border:1px solid rgba(16,185,129,0.3);">
+                                    🔴 ПРОКТОРИНГ АКТИВЕН</div>
+                            </div>
+                            <div style="display:flex; align-items:center; gap:20px;">
+                                <div id="violation-badge"
+                                    style="font-size:0.8rem; padding:4px 10px; background:rgba(245,158,11,0.15); color:#f59e0b; border-radius:6px; border:1px solid rgba(245,158,11,0.3);">
+                                    ⚠️ Нарушений: 0</div>
+                                <div id="exam-timer"
+                                    style="font-size:1.5rem; font-weight:800; color:#10b981; font-variant-numeric:tabular-nums; letter-spacing:0.05em;">
+                                    60:00</div>
+                            </div>
+                        </div>
+
+                        <!-- Camera Feed (floating top-right) -->
+                        <div id="camera-feed-wrapper"
+                            style="position:absolute; top:80px; right:24px; z-index:100; border-radius:12px; overflow:hidden; border:2px solid rgba(239,68,68,0.5); box-shadow:0 0 20px rgba(239,68,68,0.2);">
+                            <video id="proctor-video" autoplay muted playsinline
+                                style="width:160px; height:120px; object-fit:cover; display:block;"></video>
+                            <div
+                                style="position:absolute; top:6px; left:8px; display:flex; align-items:center; gap:5px;">
+                                <div class="live-dot"></div>
+                                <span
+                                    style="font-size:0.65rem; font-weight:700; color:white; letter-spacing:0.08em;">LIVE</span>
+                            </div>
+                            <canvas id="snapshot-canvas" style="display:none;"></canvas>
+                        </div>
+
+                        <!-- Exam Body (scrollable questions) -->
+                        <div style="flex:1; overflow-y:auto; padding:32px; padding-right:220px;">
+                            <p id="take-exam-desc" style="color:#94a3b8; margin-bottom:28px;"></p>
+                            <div id="take-exam-questions" style="display:flex; flex-direction:column; gap:24px;"></div>
+
+                            <!-- AI Grading Indicator -->
+                            <div id="grading-status"
+                                style="display:none; margin-top:20px; padding:20px; background:rgba(16,185,129,0.1); border:1px solid #10b981; border-radius:12px; color:#10b981;">
+                                ИИ проверяет работу... 🤖✨</div>
+                        </div>
+
+                        <!-- Exam Footer -->
+                        <div
+                            style="padding:16px 28px; background:rgba(15,23,42,0.9); border-top:1px solid rgba(255,255,255,0.08); display:flex; justify-content:space-between; align-items:center; flex-shrink:0;">
+                            <span style="color:#64748b; font-size:0.85rem;">Копирование и вставка заблокированы.
+                                Переключение вкладок фиксируется.</span>
+                            <div style="display: flex; gap: 12px;">
+                                <button id="submit-exam-btn" class="btn-primary"
+                                    style="background:linear-gradient(135deg, #10b981, #059669); padding:12px 32px;">✅
+                                    Завершить экзамен</button>
+                                <button id="return-dashboard-btn" class="btn-primary"
+                                    style="display:none; background:linear-gradient(135deg, #3b82f6, #2563eb); padding:12px 32px;">🏠
+                                    Вернуться на главную страницу</button>
+                            </div>
+                        </div>
+
+                        <!-- Submit Confirmation Modal -->
+                        <div id="submit-confirm-modal"
+                            style="display:none; position:absolute; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:150; justify-content:center; align-items:center;">
+                            <div
+                                style="background:#0f172a; border:1px solid rgba(255,255,255,0.1); border-radius:20px; padding:40px; max-width:440px; width:90%; text-align:center;">
+                                <div style="font-size:3rem; margin-bottom:16px;">📋</div>
+                                <h3 style="margin-bottom:12px;">Завершить экзамен?</h3>
+                                <p style="color:#94a3b8; margin-bottom:28px;">После подтверждения ответы будут
+                                    отправлены и проверены ИИ.</p>
+                                <div style="display:flex; gap:12px; justify-content:center;">
+                                    <button id="cancel-submit-btn"
+                                        style="padding:12px 24px; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.1); border-radius:10px; color:white; cursor:pointer;">Отмена</button>
+                                    <button id="confirm-submit-btn" class="btn-primary" style="padding:12px 24px;">Да,
+                                        завершить</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Toast Notification -->
+                        <div id="exam-toast"
+                            style="display:none; position:absolute; bottom:80px; left:50%; transform:translateX(-50%); background:rgba(239,68,68,0.9); color:white; padding:12px 24px; border-radius:10px; font-weight:600; z-index:300; white-space:nowrap;">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Student Result Modal -->
+    <div id="student-result-modal" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.8); backdrop-filter:blur(10px); z-index:1000; align-items:center; justify-content:center;">
+        <div style="background:#0f172a; border:1px solid rgba(255,255,255,0.1); border-radius:20px; padding:30px; max-width:600px; width:90%; height:80vh; display:flex; flex-direction:column;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+                <h3 style="font-size:1.5rem; color:white;">Результаты экзамена</h3>
+                <button onclick="document.getElementById('student-result-modal').style.display='none'" style="background:none; border:none; color:#cbd5e1; font-size:1.5rem; cursor:pointer;">&times;</button>
+            </div>
+            <div id="srm-score-summary" style="padding:15px; background:rgba(16,185,129,0.1); border:1px solid rgba(16,185,129,0.3); border-radius:12px; margin-bottom:20px; text-align:center;">
+                <h2 id="srm-score-text" style="color:#34d399; margin:0;">0 / 0</h2>
+            </div>
+            <div style="flex:1; overflow-y:auto; padding:15px; background:rgba(0,0,0,0.3); border-radius:12px; border:1px solid rgba(255,255,255,0.05);">
+                <div id="srm-log-content" style="color:#cbd5e1; line-height:1.6; font-family:monospace; font-size:0.9rem;"></div>
+            </div>
+        </div>
+    </div>
+
+
+
+    <!-- Application scripts -->
+    <script src="js/env.js"></script>
+    <script src="js/firebase-config.js"></script>
+    <script src="js/videoPipeline.js?v=5"></script>
+    <script src="js/app.js?v=5"></script>
+    <!-- ==========================
+         LESSON VIEWER MODAL
+         ========================== -->
+    <div id="lesson-viewer-modal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 10000; padding: 20px;">
+        <div style="background: var(--bg-dark); border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; width: 100%; height: 100%; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 20px 40px rgba(0,0,0,0.5);">
+            <!-- Header -->
+            <div style="padding: 16px 24px; border-bottom: 1px solid rgba(255,255,255,0.1); display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.02);">
+                <h2 id="lvm-title" style="margin: 0; font-size: 1.25rem; font-weight: 600; background: linear-gradient(135deg, #3b82f6, #8b5cf6); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Урок</h2>
+                <button onclick="document.getElementById('lesson-viewer-modal').style.display='none'; document.getElementById('lvm-iframe').src='';" style="background: rgba(255,255,255,0.1); border: none; color: white; width: 32px; height: 32px; border-radius: 8px; cursor: pointer; font-size: 1.1rem; display: flex; align-items: center; justify-content: center; transition: all 0.2s;">✕</button>
+            </div>
+            <!-- Body -->
+            <div style="display: flex; flex: 1; min-height: 0;">
+                <!-- Video Section -->
+                <div style="flex: 2; padding: 20px; border-right: 1px solid rgba(255,255,255,0.1); display: flex; flex-direction: column;">
+                    <div style="flex: 1; background: #000; border-radius: 12px; overflow: hidden; position: relative;">
+                        <iframe id="lvm-iframe" src="" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none;" allow="autoplay; fullscreen"></iframe>
+                    </div>
+                </div>
+                <!-- AI Konspekt Section -->
+                <div style="flex: 1; padding: 20px; overflow-y: auto; background: rgba(0,0,0,0.2);">
+                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 16px;">
+                        <div style="background: rgba(139, 92, 246, 0.2); color: #c4b5fd; padding: 6px; border-radius: 8px; display: inline-flex;"><svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg></div>
+                        <h3 style="margin: 0; font-size: 1.1rem; color: #f8fafc; font-weight: 600;">ИИ Конспект</h3>
+                    </div>
+                    <div id="lvm-summary" class="markdown-body" style="font-size: 0.95rem; color: #cbd5e1; line-height: 1.6; white-space: pre-wrap; margin-bottom: 24px;">
+                    </div>
+                    
+                    <!-- Visual Assets Section -->
+                    <div style="border-top: 1px solid rgba(255,255,255,0.08); padding-top: 18px; margin-top: 8px;">
+                        <button id="lvm-generate-visuals-btn" onclick="window.generateVisualsOnDemand()" style="width: 100%; padding: 12px; background: linear-gradient(135deg, rgba(16,185,129,0.15), rgba(59,130,246,0.15)); border: 1px solid rgba(16,185,129,0.3); border-radius: 10px; color: #34d399; font-size: 0.95rem; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.2s;" onmouseover="this.style.background='linear-gradient(135deg, rgba(16,185,129,0.25), rgba(59,130,246,0.25))'" onmouseout="this.style.background='linear-gradient(135deg, rgba(16,185,129,0.15), rgba(59,130,246,0.15))'">
+                            <span id="lvm-generate-btn-icon">✨</span>
+                            <span id="lvm-generate-btn-text">Сгенерировать визуальные материалы</span>
+                        </button>
+                        <div id="lvm-visuals-container" style="display: none; margin-top: 16px;">
+                            <div id="lvm-visuals-list" style="display: flex; flex-direction: column; gap: 16px;"></div>
+                        </div>
+                    </div>
+
+                    <!-- AI Test Section -->
+                    <div style="border-top: 1px solid rgba(255,255,255,0.08); padding-top: 18px; margin-top: 18px;">
+                        <button id="lvm-generate-test-btn" onclick="window.generateTestOnDemand()" style="width: 100%; padding: 12px; background: linear-gradient(135deg, rgba(236,72,153,0.15), rgba(99,102,241,0.15)); border: 1px solid rgba(236,72,153,0.3); border-radius: 10px; color: #f472b6; font-size: 0.95rem; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.2s;" onmouseover="this.style.background='linear-gradient(135deg, rgba(236,72,153,0.25), rgba(99,102,241,0.25))'" onmouseout="this.style.background='linear-gradient(135deg, rgba(236,72,153,0.15), rgba(99,102,241,0.15))'">
+                            <span id="lvm-generate-test-btn-icon">📝</span>
+                            <span id="lvm-generate-test-btn-text">Сгенерировать тест по уроку</span>
+                        </button>
+                        <div id="lvm-test-container" style="display: none; margin-top: 16px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 16px;">
+                            <div id="lvm-test-list" style="display: flex; flex-direction: column; gap: 16px;"></div>
+                            <div id="lvm-test-result" style="display: none; margin-top: 16px; font-weight: bold; text-align: center; font-size: 1.1rem; padding: 12px; border-radius: 8px; background: rgba(16,185,129,0.1); color: #34d399; border: 1px solid rgba(16,185,129,0.3);"></div>
+                            <button id="lvm-submit-test-btn" onclick="window.submitVideoLessonTest()" style="display: none; width: 100%; padding: 12px; margin-top: 20px; background: linear-gradient(135deg, #10b981, #059669); border: none; border-radius: 10px; color: white; font-size: 1rem; font-weight: bold; cursor: pointer;">Отправить ответы</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+
+</html>

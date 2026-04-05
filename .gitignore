@@ -1,0 +1,9 @@
+# API Keys — never commit to public repos
+js/env.js
+
+# Dependencies
+node_modules/
+
+# Logs
+*.log
+proxy_out.txt
