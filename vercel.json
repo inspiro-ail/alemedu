@@ -6,14 +6,25 @@
       "use": "@vercel/node"
     },
     {
-      "src": "index.html",
+      "src": "**/*.html",
+      "use": "@vercel/static"
+    },
+    {
+      "src": "css/**",
+      "use": "@vercel/static"
+    },
+    {
+      "src": "js/**",
+      "use": "@vercel/static"
+    },
+    {
+      "src": "assets/**",
       "use": "@vercel/static"
     }
   ],
   "rewrites": [
-    { "source": "/proxy(.*)", "destination": "/proxy.js" },
-    { "source": "/image-gen(.*)", "destination": "/proxy.js" },
-    { "source": "/api/(.*)", "destination": "/proxy.js" },
-    { "source": "/(.*)", "destination": "/$1" }
+    { "source": "/proxy", "destination": "/proxy.js" },
+    { "source": "/image-gen", "destination": "/proxy.js" },
+    { "source": "/api/(.*)", "destination": "/proxy.js" }
   ]
 }
