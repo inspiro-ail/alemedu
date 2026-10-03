@@ -140,10 +140,13 @@ app.use('/proxy', createProxyMiddleware({
     }
 }));
 
-// Use PORT env variable for cloud hosting (Render, Railway, etc.) or fallback to 3000
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-    console.log(`[AlemEdu Proxy] Running on port ${PORT}`);
-});
+// Only listen if executed directly (e.g. node proxy.js)
+// If imported as a module (e.g. by Vercel or Netlify), don't start the listener
+if (require.main === module) {
+    const PORT = process.env.PORT || 3000;
+    app.listen(PORT, () => {
+        console.log(`[AlemEdu Proxy] Running on port ${PORT}`);
+    });
+}
 
 module.exports = app;
