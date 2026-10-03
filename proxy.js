@@ -62,8 +62,7 @@ app.post('/image-gen', async (req, res) => {
 });
 
 // Python Machine Learning Proctoring Softmax Endpoint
-app.use(express.json());
-app.post('/api/proctor/ml-softmax', (req, res) => {
+app.post('/api/proctor/ml-softmax', express.json(), (req, res) => {
     const { execFile } = require('child_process');
     const path = require('path');
     const payload = JSON.stringify(req.body || {});
