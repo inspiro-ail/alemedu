@@ -147,3 +147,4 @@ app.listen(PORT, () => {
     console.log(`[AlemEdu Proxy] Running on port ${PORT}`);
 });
 
+module.exports = app;
