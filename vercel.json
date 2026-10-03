@@ -1,0 +1,19 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "proxy.js",
+      "use": "@vercel/node"
+    },
+    {
+      "src": "index.html",
+      "use": "@vercel/static"
+    }
+  ],
+  "rewrites": [
+    { "source": "/proxy(.*)", "destination": "/proxy.js" },
+    { "source": "/image-gen(.*)", "destination": "/proxy.js" },
+    { "source": "/api/(.*)", "destination": "/proxy.js" },
+    { "source": "/(.*)", "destination": "/$1" }
+  ]
+}

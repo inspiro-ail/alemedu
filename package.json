@@ -1,7 +1,7 @@
 {
-  "name": "alem-edu-proxy",
+  "name": "alemedu-platform",
   "version": "1.0.0",
-  "description": "CORS proxy for AlemEdu API calls",
+  "description": "AlemEdu Sovereign Platform",
   "main": "proxy.js",
   "scripts": {
     "start": "node proxy.js"
@@ -9,6 +9,9 @@
   "dependencies": {
     "cors": "^2.8.5",
     "express": "^4.18.2",
-    "http-proxy-middleware": "^3.0.3"
+    "http-proxy-middleware": "^2.0.6"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }

@@ -15,6 +15,14 @@
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-storage-compat.js"></script>
 
+    <!-- PDF.js for in-browser PDF extraction -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script>
+        if (window.pdfjsLib) {
+            window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        }
+    </script>
+
     <!-- Custom CSS -->
     <link rel="stylesheet" href="css/styles.css?v=3">
 
@@ -30,6 +38,9 @@
     <!-- Skulpt: In-browser Python -->
     <script src="https://cdn.jsdelivr.net/npm/skulpt@1.2.0/dist/skulpt.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/skulpt@1.2.0/dist/skulpt-stdlib.js"></script>
+    <!-- MediaPipe 3D FaceMesh ML Engine -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
 </head>
 
 <body>
@@ -43,7 +54,13 @@
         <!-- ======================= -->
         <div id="auth-view" class="view-section active">
             <div class="auth-card glass-panel">
-                <div class="auth-header">
+                <div class="auth-header" style="position: relative;">
+                    <div style="position: absolute; top: -5px; right: 0;">
+                        <div class="lang-switcher">
+                            <button class="lang-btn active" data-lang="ru" onclick="setLanguage('ru')">RU</button>
+                            <button class="lang-btn" data-lang="kz" onclick="setLanguage('kz')">KZ</button>
+                        </div>
+                    </div>
                     <h1>AlemEdu</h1>
                     <p>Образовательная платформа будущего</p>
                 </div>
@@ -71,6 +88,7 @@
                         <div class="form-group" id="subject-group" style="display: none;">
                             <label>Ваш предмет (только для учителей)</label>
                             <select id="subject-select" style="width: 100%; padding: 10px; background:rgba(0,0,0,0.3); color:white; border:1px solid rgba(255,255,255,0.1); border-radius:8px;">
+                                <option value="Физика">⚛️ Физика</option>
                                 <option value="Естествознание">🌍 Естествознание</option>
                                 <option value="Информатика">💻 Информатика</option>
                                 <option value="Математика">📐 Математика</option>
@@ -113,6 +131,7 @@
                 <div class="dash-nav teacher-nav">
                     <button class="nav-btn" data-view="t-view-profile">👤 Личный кабинет</button>
                     <button class="nav-btn active" data-view="t-view-workspace">🤖 ИИ & Задачи</button>
+                    <button class="nav-btn" data-view="t-view-textbooks">📖 Учебники (PDF)</button>
                     <button class="nav-btn" data-view="t-view-lessons">📚 Уроки (Видео)</button>
                     <button class="nav-btn" data-view="t-view-classes">👥 Мои Классы</button>
                     <button class="nav-btn" data-view="t-view-exams">📑 Экзамены</button>
@@ -122,6 +141,8 @@
 
                     <button class="nav-btn" data-view="t-view-kahoot" style="background: rgba(244, 63, 94, 0.1); border: 1px solid rgba(244, 63, 94, 0.2); margin-top: 10px; color: #fb7185;">🎯 Викторина ИИ</button>
                     <button class="nav-btn" data-view="t-view-wheel" style="background: rgba(251, 191, 36, 0.1); border: 1px solid rgba(251, 191, 36, 0.2); margin-top: 8px; color: #fbbf24;">🎡 Колесо удачи</button>
+                    <button class="nav-btn" data-view="t-view-presentations" style="background: rgba(139, 92, 246, 0.1); border: 1px solid rgba(139, 92, 246, 0.2); margin-top: 8px; color: #c084fc;">📊 ИИ Презентации</button>
+                    
                 </div>
             </div>
 
@@ -130,7 +151,11 @@
                 <div class="dash-header">
                     <div class="dash-logo">✨ AlemEdu <span>Teacher Dashboard</span></div>
                     
-                    <div class="user-profile">
+                    <div class="user-profile" style="display: flex; align-items: center; gap: 12px;">
+                        <div class="lang-switcher">
+                            <button class="lang-btn active" data-lang="ru" onclick="setLanguage('ru')">RU</button>
+                            <button class="lang-btn" data-lang="kz" onclick="setLanguage('kz')">KZ</button>
+                        </div>
                         <span id="t-user-name">Преподаватель</span>
                         <button id="t-logout" class="logout-btn">Выйти</button>
                     </div>
@@ -199,6 +224,13 @@
                         <div class="chat-panel">
                             <div class="chat-messages" id="chatbox">
                                 <!-- Messages dynamically appear here -->
+                            </div>
+                            <div style="padding: 10px 16px; background: rgba(139, 92, 246, 0.12); border-top: 1px solid rgba(139, 92, 246, 0.25); border-bottom: 1px solid rgba(139, 92, 246, 0.25); display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;">
+                                <label style="font-size: 0.85rem; color: #c084fc; display: flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; font-weight: 600;">
+                                    <input type="checkbox" id="t-use-textbook-check" style="accent-color: #8b5cf6; width: 16px; height: 16px;" checked onchange="window.updateTextbookBadgeStatus()">
+                                    <span>📖 Генерировать по учебнику класса</span>
+                                </label>
+                                <span id="t-textbook-badge" style="font-size: 0.75rem; color: #a78bfa; background: rgba(0,0,0,0.4); padding: 4px 10px; border-radius: 10px; border: 1px solid rgba(139,92,246,0.3); font-weight: 600;">🔍 Проверка учебника...</span>
                             </div>
                             <div class="chat-input-area">
                                 <textarea id="userInput" placeholder="Напишите задачу для генерации..."
@@ -311,6 +343,55 @@
                             </div>
                             <div id="teacher-lessons-list" style="display: flex; flex-direction: column; gap: 12px; max-height: 400px; overflow-y: auto;">
                                 <div style="color: #64748b; font-size: 0.9rem;">Нажмите "Обновить" для загрузки списка.</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                
+                <!-- ==========================
+                     SUB-VIEW 1.7: TEXTBOOKS (PDF)
+                     ========================== -->
+                <div id="t-view-textbooks" class="teacher-subview" style="display: none; width: 100%; padding: 30px; overflow-y: auto;">
+                    <div style="max-width: 1000px; margin: 0 auto; width: 100%;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px; flex-wrap:wrap; gap:16px;">
+                            <div>
+                                <h2 style="font-size:1.6rem; font-weight:700; background:linear-gradient(135deg,#a855f7,#ec4899); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;">📖 Учебники (PDF) для ИИ</h2>
+                                <p style="color:#64748b; font-size:0.85rem; margin-top:4px;">Загрузите PDF учебник для класса, чтобы ИИ генерировал задания строго по программе</p>
+                            </div>
+                        </div>
+
+                        <!-- Upload PDF Form -->
+                        <div class="task-form-panel" style="background:rgba(0,0,0,0.2); border:1px solid rgba(255,255,255,0.05); padding:24px; border-radius:16px; margin-bottom: 24px;">
+                            <h3>📤 Загрузить учебник (PDF)</h3>
+                            <div style="display:flex; gap:12px; flex-wrap:wrap; margin-top:16px;">
+                                <div class="form-group" style="flex:1; min-width:180px;">
+                                    <label>Код класса</label>
+                                    <input type="text" id="pdf-class-code" value="ALEM-101" placeholder="ALEM-101">
+                                </div>
+                                <div class="form-group" style="flex:2; min-width:240px;">
+                                    <label>Название / Описание учебника</label>
+                                    <input type="text" id="pdf-title" placeholder="Физика 10 класс (Казахстан)">
+                                </div>
+                            </div>
+                            <div class="form-group" style="margin-top:16px;">
+                                <label>Выберите PDF файл (до 25 МБ)</label>
+                                <input type="file" id="pdf-file-input" accept="application/pdf" style="padding:10px; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.2); border-radius:8px; width:100%; color:white;">
+                            </div>
+                            <div id="pdf-upload-progress" style="display:none; margin-top:12px; font-size:0.85rem; color:#a78bfa; font-weight:600;">
+                                ⏳ Извлечение текста из PDF и обучение ИИ...
+                            </div>
+                            <button id="upload-pdf-btn" onclick="window.uploadClassTextbookPdf()" class="btn-primary" style="margin-top:20px; background:linear-gradient(135deg,#8b5cf6,#d946ef);">🚀 Загрузить и обучить ИИ</button>
+                        </div>
+
+                        <!-- Existing Textbooks List -->
+                        <div style="background:rgba(0,0,0,0.2); border:1px solid rgba(255,255,255,0.05); padding:24px; border-radius:16px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                                <h3>📚 Загруженные учебники</h3>
+                                <button onclick="window.loadTeacherTextbooks()" class="btn-secondary" style="padding: 6px 12px; font-size: 0.85rem;">🔄 Обновить</button>
+                            </div>
+                            <div id="teacher-textbooks-list" style="display:flex; flex-direction:column; gap:12px;">
+                                <div style="color:#64748b; font-size:0.9rem;">Нажмите "Обновить" для загрузки списка.</div>
                             </div>
                         </div>
                     </div>
@@ -507,6 +588,21 @@
                                 </div>
 
                                 <!-- Submissions Table area -->
+                                
+                                 <!-- ML Softmax Proctoring Report Container -->
+                                 <div id="exam-proctoring-ml-report" style="margin-top:24px; padding:20px; background:rgba(15,23,42,0.9); border:1px solid rgba(139,92,246,0.3); border-radius:16px; display:none;">
+                                     <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
+                                         <div style="display:flex; align-items:center; gap:10px;">
+                                             <span style="font-size:1.4rem;">🧠</span>
+                                             <div>
+                                                 <h4 style="color:#white; margin:0; font-size:1.05rem;">ИИ ML Softmax Прокторинг Отчет</h4>
+                                                 <div style="font-size:0.75rem; color:#a78bfa;">Анализ 468 точек лица, Softmax-вероятностей и уровня стресса</div>
+                                             </div>
+                                         </div>
+                                         <span style="font-size:0.75rem; padding:4px 10px; border-radius:20px; background:rgba(139,92,246,0.2); color:#c084fc; border:1px solid rgba(139,92,246,0.4);">MediaPipe FaceMesh</span>
+                                     </div>
+                                     <div id="exam-proctoring-ml-content"></div>
+                                 </div>
                                 <div id="exam-analytics-table-container" style="margin-top:24px; display:none;">
                                 </div>
                             </div>
@@ -657,34 +753,7 @@
                     </div>
                 </div>
 
-                <!-- ==========================
-                     SUB-VIEW 6: GRADEBOOK (TEACHER)
-                     ========================== -->
-                <div id="t-view-gradebook" class="teacher-subview"
-                    style="display: none; width: 100%; padding: 30px; overflow-y: auto;">
-                    <div style="max-width: 1200px; margin: 0 auto; width: 100%;">
-                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px; flex-wrap:wrap; gap:16px;">
-                            <div>
-                                <h2 style="font-size:1.6rem; font-weight:700; background:linear-gradient(135deg,#6366f1,#a855f7); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;">📊 Журнал оценок</h2>
-                                <p style="color:#64748b; font-size:0.85rem; margin-top:4px;">Общая сводка по задачам и экзаменам (Мой предмет)</p>
-                            </div>
-                            <div style="display:flex; gap:12px; align-items:center;">
-                                <input type="text" id="t-gb-class-code" placeholder="ALEM-101"
-                                    style="padding:10px 14px; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.12); border-radius:10px; color:white; outline:none; font-size:0.9rem;"
-                                    value="ALEM-101">
-                                <button id="t-load-gb-btn" class="btn-primary"
-                                    style="padding:10px 22px; margin-top:0; white-space:nowrap; min-width:auto;">Загрузить</button>
-                            </div>
-                        </div>
-
-                        <div id="t-gb-content">
-                            <div class="rank-empty">
-                                <div class="rank-empty-icon">📊</div>
-                                <p>Введите код класса для просмотра журнала</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                
 
                 <!-- ==========================
                      SUB-VIEW 7: AI KAHOOT (TEACHER)
@@ -914,6 +983,82 @@
                     </div>
                 </div> <!-- End of t-view-wheel -->
 
+                    <!-- View: Presentations (Teacher) -->
+                    <div id="t-view-presentations" class="teacher-subview" style="display: none; width: 100%; padding: 30px; overflow-y: auto;">
+                        <div style="max-width: 1200px; margin: 0 auto; width: 100%;">
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px; flex-wrap:wrap; gap:16px;">
+                                <div>
+                                    <h2 style="font-size:1.8rem; font-weight:700; background:linear-gradient(135deg,#c084fc,#38bdf8); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; margin:0;">📊 Конструктор Презентаций ИИ</h2>
+                                    <p style="color:#94a3b8; font-size:0.85rem; margin-top:4px;">Генерируйте интерактивные слайды с формулами, кодом и тестами за секунды</p>
+                                </div>
+                                <button onclick="window.openPresentationEditor('new')" style="padding:10px 20px; background:linear-gradient(135deg,#10b981,#059669); color:white; border:none; border-radius:12px; font-weight:700; font-size:0.88rem; cursor:pointer; display:flex; align-items:center; gap:8px; box-shadow:0 4px 15px rgba(16,185,129,0.3);">
+                                    ➕ Создать вручную
+                                </button>
+                            </div>
+
+                            <!-- AI Generator Panel -->
+                            <div style="background:rgba(15,23,42,0.8); border:1px solid rgba(139,92,246,0.35); border-radius:20px; padding:24px; margin-bottom:30px; box-shadow:0 10px 30px rgba(0,0,0,0.3);">
+                                <h3 style="color:white; font-size:1.15rem; margin:0 0 16px 0; display:flex; align-items:center; gap:8px;">
+                                    <span>✨</span> Генератор Презентаций AlemEdu AI
+                                </h3>
+                                <div style="display:grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr; gap:14px; margin-bottom:18px;">
+                                    <div>
+                                        <label style="font-size:0.78rem; color:#94a3b8; display:block; margin-bottom:6px;">Тема урока / Презентации:</label>
+                                        <input type="text" id="pres-ai-topic" placeholder="Например: Законы Ньютона и механика" style="width:100%; padding:10px 14px; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.15); border-radius:10px; color:white; font-size:0.88rem; outline:none;">
+                                    </div>
+                                    <div>
+                                        <label style="font-size:0.78rem; color:#94a3b8; display:block; margin-bottom:6px;">Предмет:</label>
+                                        <select id="pres-ai-subject" style="width:100%; padding:10px 12px; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.15); border-radius:10px; color:white; font-size:0.85rem; outline:none;">
+                                            <option value="Физика">⚛️ Физика</option>
+                                            <option value="Информатика">🐍 Информатика</option>
+                                            <option value="Естествознание">🌿 Естествознание</option>
+                                            <option value="Математика">📐 Математика</option>
+                                            <option value="История Казахстана">🇰🇿 История Казахстана</option>
+                                            <option value="Самопознание">🧘 Самопознание</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label style="font-size:0.78rem; color:#94a3b8; display:block; margin-bottom:6px;">Класс:</label>
+                                        <select id="pres-ai-grade" style="width:100%; padding:10px 12px; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.15); border-radius:10px; color:white; font-size:0.85rem; outline:none;">
+                                            <option value="7 класс">7 класс</option>
+                                            <option value="8 класс">8 класс</option>
+                                            <option value="9 класс">9 класс</option>
+                                            <option value="10 класс" selected>10 класс</option>
+                                            <option value="11 класс">11 класс</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label style="font-size:0.78rem; color:#94a3b8; display:block; margin-bottom:6px;">Кол-во слайдов:</label>
+                                        <select id="pres-ai-count" style="width:100%; padding:10px 12px; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.15); border-radius:10px; color:white; font-size:0.85rem; outline:none;">
+                                            <option value="4">4 слайда</option>
+                                            <option value="5" selected>5 слайдов</option>
+                                            <option value="6">6 слайдов</option>
+                                            <option value="8">8 слайдов</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label style="font-size:0.78rem; color:#94a3b8; display:block; margin-bottom:6px;">Тема оформления:</label>
+                                        <select id="pres-ai-theme" style="width:100%; padding:10px 12px; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.15); border-radius:10px; color:white; font-size:0.85rem; outline:none;">
+                                            <option value="space-violet">🌌 Фиолетовый Космос</option>
+                                            <option value="cyber">⚡ Киберпанк Синий</option>
+                                            <option value="emerald">🌿 Изумрудная Наука</option>
+                                            <option value="amber">☀️ Янтарное Золото</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <button id="pres-ai-gen-btn" onclick="window.generateAiPresentation()" style="width:100%; padding:12px; background:linear-gradient(135deg,#8b5cf6,#ec4899); border:none; border-radius:12px; color:white; font-size:0.95rem; font-weight:700; cursor:pointer; box-shadow:0 4px 15px rgba(139,92,246,0.3); transition:all 0.2s;" onmouseover="this.style.opacity='0.9'" onmouseout="this.style.opacity='1'">
+                                    ✨ Сгенерировать презентацию с ИИ
+                                </button>
+                            </div>
+
+                            <!-- Saved Presentations Header & Grid -->
+                            <h3 style="color:white; font-size:1.3rem; margin:0 0 16px 0;">📚 Мои Презентации</h3>
+                            <div id="t-presentations-grid" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap:20px;">
+                                <!-- Rendered by presentations.js -->
+                            </div>
+                        </div>
+                    </div>
+
             </div> <!-- End of dash-body -->
         </div> <!-- End of view-section-content -->
     </div> <!-- End of teacher-view -->
@@ -933,6 +1078,8 @@
                     <button class="nav-btn" data-view="s-view-ranking">🏆 Рейтинг</button>
                     <button class="nav-btn" data-view="s-view-gradebook">📊 Мои Оценки</button>
                     <button class="nav-btn" data-view="s-view-calendar">📅 Календарь</button>
+                    <button class="nav-btn" data-view="s-view-presentations">📊 Презентации</button>
+                    
                 </div>
             </div>
 
@@ -941,7 +1088,11 @@
                 <div class="dash-header">
                     <div class="dash-logo">🎓 AlemEdu <span>Student Dashboard</span></div>
                     
-                    <div class="user-profile">
+                    <div class="user-profile" style="display: flex; align-items: center; gap: 12px;">
+                        <div class="lang-switcher">
+                            <button class="lang-btn active" data-lang="ru" onclick="setLanguage('ru')">RU</button>
+                            <button class="lang-btn" data-lang="kz" onclick="setLanguage('kz')">KZ</button>
+                        </div>
                         <div style="display: flex; flex-direction: column; text-align: right;">
                             <span id="s-user-name" style="font-weight: 600;">Студент</span>
                             <span id="s-class-badge" style="font-size: 0.8rem; color: #10b981;">Класс: ALEM-101</span>
@@ -960,6 +1111,13 @@
                     </div>
 
                     <div class="subject-grid">
+                                                <div class="subject-card" onclick="openSubject('Физика')" style="--subj-color: #8b5cf6; --subj-bg: rgba(139,92,246,0.1);">
+                            <div class="subj-icon">⚛️</div>
+                            <div class="subj-info">
+                                <h3>Физика</h3>
+                                <span>Законы природы & Лаборатория</span>
+                            </div>
+                        </div>
                         <div class="subject-card" onclick="openSubject('Естествознание')" style="--subj-color: #10b981; --subj-bg: rgba(16,185,129,0.1);">
                             <div class="subj-icon">🌍</div>
                             <div class="subj-info">
@@ -999,16 +1157,207 @@
 
                     <!-- Subject Detail View (Hidden by default) -->
                     <div id="subject-detail-view" style="display:none; margin-top:40px;">
-                        <div style="display:flex; align-items:center; gap:16px; margin-bottom:24px;">
-                            <button onclick="closeSubject()" class="btn-secondary" style="padding: 8px 16px;">⬅ Назад</button>
-                            <h2 id="current-subject-title" style="margin:0;">Название предмета</h2>
+                        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:24px; flex-wrap:wrap; gap:16px;">
+                            <div style="display:flex; align-items:center; gap:16px;">
+                                <button onclick="closeSubject()" class="btn-secondary" style="padding: 8px 16px;">⬅ Назад</button>
+                                <h2 id="current-subject-title" style="margin:0;">Название предмета</h2>
+                            </div>
+                            <div id="subject-lab-btn-container"></div>
                         </div>
                         <!-- Two-column layout: content on left, compiler on right (for Информатика) -->
-                        <div style="display:flex; gap:24px; align-items:flex-start;">
+                        <div style="display:flex; gap:24px; align-items:flex-start; flex-wrap:wrap;">
                             <div id="subject-content-list" class="tasks-grid" style="flex:1; min-width:0;"></div>
 
                             <!-- Python Compiler Panel (shown only for Информатика) -->
-                            <div id="py-compiler-panel" style="display:none; flex-direction:column; width:420px; flex-shrink:0; position:sticky; top:20px;">
+                            
+                            <!-- Virtual Physics Laboratory Panel (shown only for Физика) -->
+                                                        <!-- Virtual Physics Laboratory Panel (shown only for Физика) -->
+                            <div id="physics-lab-panel" style="display:none; flex-direction:column; width:520px; max-width:100%; flex-shrink:0; position:sticky; top:20px; box-sizing:border-box;">
+                                <div style="background:rgba(15,23,42,0.95); border:1px solid rgba(139,92,246,0.35); border-radius:20px; overflow:hidden; box-shadow: 0 20px 50px rgba(0,0,0,0.5);">
+                                    <!-- Panel Header -->
+                                    <div style="display:flex; align-items:center; justify-content:space-between; padding:14px 18px; background:rgba(139,92,246,0.12); border-bottom:1px solid rgba(139,92,246,0.25);">
+                                        <div style="display:flex; align-items:center; gap:10px;">
+                                            <span style="font-size:1.3rem;">⚛️</span>
+                                            <div>
+                                                <span style="font-weight:700; color:white; font-size:0.95rem;">Виртуальная Лаборатория Физики</span>
+                                                <div style="font-size:0.72rem; color:#a78bfa;">Интерактивные симуляции законов природы</div>
+                                            </div>
+                                        </div>
+                                        <a href="physics_lab.html" target="_blank" style="padding:6px 12px; background:linear-gradient(135deg, #10b981, #059669); color:white; font-size:0.76rem; font-weight:700; border-radius:10px; text-decoration:none; display:inline-flex; align-items:center; gap:5px; box-shadow:0 4px 12px rgba(16,185,129,0.3); transition:all 0.2s;" onmouseover="this.style.opacity='0.9'" onmouseout="this.style.opacity='1'">
+                                            🔬 efizika (8 в 1) ↗
+                                        </a>
+                                    </div>
+                                    <div style="padding:10px 14px; background:rgba(16,185,129,0.06); border-bottom:1px solid rgba(16,185,129,0.15);">
+                                        <a href="physics_lab.html" target="_blank" style="display:flex; align-items:center; justify-content:space-between; width:100%; padding:9px 14px; background:linear-gradient(135deg, rgba(16,185,129,0.22), rgba(139,92,246,0.25)); border:1px solid rgba(52,211,153,0.4); border-radius:12px; color:white; text-decoration:none; transition:all 0.2s; box-shadow:0 4px 14px rgba(16,185,129,0.15);" onmouseover="this.style.transform='translateY(-1px)';" onmouseout="this.style.transform='none';">
+                                            <div style="display:flex; align-items:center; gap:10px;">
+                                                <span style="font-size:1.3rem;">🔬</span>
+                                                <div>
+                                                    <div style="font-weight:700; font-size:0.83rem; color:#34d399;">3D/Canvas Лаборатория efizika.ru</div>
+                                                    <div style="font-size:0.71rem; color:#cbd5e1;">8 интерактивных экспериментальных установок</div>
+                                                </div>
+                                            </div>
+                                            <span style="background:#10b981; color:white; font-size:0.75rem; font-weight:700; padding:6px 12px; border-radius:8px; display:inline-flex; align-items:center; gap:4px; white-space:nowrap;">Открыть 🚀</span>
+                                        </a>
+                                    </div>
+
+                                    <!-- Simulation Tabs -->
+                                    <div style="display:flex; background:rgba(0,0,0,0.4); border-bottom:1px solid rgba(255,255,255,0.08); padding:4px; gap:4px; overflow-x:auto;">
+                                        <button onclick="window.switchPhysicsTab('mechanics')" id="phys-tab-btn-mechanics" style="flex:1; padding:7px 10px; border:none; border-radius:8px; background:rgba(139,92,246,0.25); color:white; font-size:0.78rem; font-weight:700; cursor:pointer; white-space:nowrap;">🚀 Механика</button>
+                                        <button onclick="window.switchPhysicsTab('electric')" id="phys-tab-btn-electric" style="flex:1; padding:7px 10px; border:none; border-radius:8px; background:transparent; color:#94a3b8; font-size:0.78rem; font-weight:600; cursor:pointer; white-space:nowrap;">⚡ Цепь</button>
+                                        <button onclick="window.switchPhysicsTab('optics')" id="phys-tab-btn-optics" style="flex:1; padding:7px 10px; border:none; border-radius:8px; background:transparent; color:#94a3b8; font-size:0.78rem; font-weight:600; cursor:pointer; white-space:nowrap;">🔍 Оптика</button>
+                                        <button onclick="window.switchPhysicsTab('pendulum')" id="phys-tab-btn-pendulum" style="flex:1; padding:7px 10px; border:none; border-radius:8px; background:transparent; color:#94a3b8; font-size:0.78rem; font-weight:600; cursor:pointer; white-space:nowrap;">⏱️ Маятник</button>
+                                        <button onclick="window.switchPhysicsTab('life')" id="phys-tab-btn-life" style="flex:1; padding:7px 10px; border:none; border-radius:8px; background:transparent; color:#94a3b8; font-size:0.78rem; font-weight:600; cursor:pointer; white-space:nowrap;">✈️ В жизни</button>
+                                    </div>
+
+                                    <!-- Simulation View Area -->
+                                    <div style="padding:16px;">
+                                        <!-- 1. MECHANICS VIEW -->
+                                        <div id="phys-view-mechanics" style="display:flex; flex-direction:column; gap:12px;">
+                                            <div style="position:relative; width:100%; height:200px; background:#090d16; border-radius:14px; border:1px solid rgba(255,255,255,0.08); overflow:hidden;">
+                                                <canvas id="phys-canvas-mechanics" width="488" height="200" style="width:100%; height:100%; display:block;"></canvas>
+                                            </div>
+                                            <div style="background:rgba(0,0,0,0.3); padding:12px; border-radius:12px; border:1px solid rgba(255,255,255,0.05); display:flex; flex-direction:column; gap:10px;">
+                                                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
+                                                    <div>
+                                                        <label style="font-size:0.75rem; color:#94a3b8; display:flex; justify-content:space-between;">Угол пуска: <span id="phys-mech-angle-val" style="color:#c084fc; font-weight:700;">45°</span></label>
+                                                        <input type="range" id="phys-mech-angle" min="10" max="80" value="45" oninput="window.updatePhysicsMech()" style="width:100%; accent-color:#8b5cf6;">
+                                                    </div>
+                                                    <div>
+                                                        <label style="font-size:0.75rem; color:#94a3b8; display:flex; justify-content:space-between;">Скорость: <span id="phys-mech-speed-val" style="color:#c084fc; font-weight:700;">40 м/с</span></label>
+                                                        <input type="range" id="phys-mech-speed" min="10" max="80" value="40" oninput="window.updatePhysicsMech()" style="width:100%; accent-color:#8b5cf6;">
+                                                    </div>
+                                                </div>
+                                                <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
+                                                    <select id="phys-mech-gravity" onchange="window.updatePhysicsMech()" style="background:#1e293b; color:white; border:1px solid rgba(255,255,255,0.1); padding:6px 10px; border-radius:8px; font-size:0.78rem; outline:none;">
+                                                        <option value="9.8">🌍 Земля (9.8 м/с²)</option>
+                                                        <option value="1.6">🌙 Луна (1.6 м/с²)</option>
+                                                        <option value="3.7">🔴 Марс (3.7 м/с²)</option>
+                                                        <option value="24.8">⚡ Юпитер (24.8 м/с²)</option>
+                                                    </select>
+                                                    <label style="font-size:0.78rem; color:#cbd5e1; display:flex; align-items:center; gap:6px; cursor:pointer;">
+                                                        <input type="checkbox" id="phys-mech-air" style="accent-color:#8b5cf6;"> Сопротивление воздуха
+                                                    </label>
+                                                    <button onclick="window.runPhysicsMechLaunch()" style="background:linear-gradient(135deg, #8b5cf6, #ec4899); color:white; border:none; padding:7px 14px; border-radius:8px; font-size:0.78rem; font-weight:700; cursor:pointer; box-shadow:0 4px 12px rgba(139,92,246,0.3);">🚀 Запуск</button>
+                                                </div>
+                                                <div style="display:flex; justify-content:space-around; background:rgba(255,255,255,0.03); padding:8px; border-radius:8px; font-size:0.75rem; color:#94a3b8;">
+                                                    <div>Дальность: <b id="phys-mech-res-dist" style="color:#38bdf8;">0 м</b></div>
+                                                    <div>Высота: <b id="phys-mech-res-height" style="color:#34d399;">0 м</b></div>
+                                                    <div>Время: <b id="phys-mech-res-time" style="color:#fbbf24;">0 с</b></div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <!-- 2. ELECTRICITY VIEW -->
+                                        <div id="phys-view-electric" style="display:none; flex-direction:column; gap:12px;">
+                                            <div style="position:relative; width:100%; height:200px; background:#090d16; border-radius:14px; border:1px solid rgba(255,255,255,0.08); overflow:hidden;">
+                                                <canvas id="phys-canvas-electric" width="488" height="200" style="width:100%; height:100%; display:block;"></canvas>
+                                            </div>
+                                            <div style="background:rgba(0,0,0,0.3); padding:12px; border-radius:12px; border:1px solid rgba(255,255,255,0.05); display:flex; flex-direction:column; gap:10px;">
+                                                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
+                                                    <div>
+                                                        <label style="font-size:0.75rem; color:#94a3b8; display:flex; justify-content:space-between;">Напряжение (U): <span id="phys-elec-volt-val" style="color:#60a5fa; font-weight:700;">12 В</span></label>
+                                                        <input type="range" id="phys-elec-volt" min="1" max="36" value="12" oninput="window.updatePhysicsElectric()" style="width:100%; accent-color:#3b82f6;">
+                                                    </div>
+                                                    <div>
+                                                        <label style="font-size:0.75rem; color:#94a3b8; display:flex; justify-content:space-between;">Сопротивление (R): <span id="phys-elec-res-val" style="color:#f59e0b; font-weight:700;">20 Ом</span></label>
+                                                        <input type="range" id="phys-elec-res" min="5" max="100" value="20" oninput="window.updatePhysicsElectric()" style="width:100%; accent-color:#f59e0b;">
+                                                    </div>
+                                                </div>
+                                                <div style="display:flex; justify-content:space-around; background:rgba(255,255,255,0.03); padding:8px; border-radius:8px; font-size:0.78rem; color:#94a3b8;">
+                                                    <div>Сила тока (I = U/R): <b id="phys-elec-res-current" style="color:#60a5fa;">0.60 А</b></div>
+                                                    <div>Мощность (P = U·I): <b id="phys-elec-res-power" style="color:#fde047;">7.20 Вт</b></div>
+                                                </div>
+                                                <div id="phys-elec-status-msg" style="padding:8px 12px; border-radius:8px; font-size:0.74rem; border:1px solid rgba(59,130,246,0.2); background:rgba(59,130,246,0.1); color:#93c5fd;">
+                                                    💡 Нормальный ток. Электроны замкнули цепь в реальном времени.
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <!-- 3. OPTICS VIEW -->
+                                        <div id="phys-view-optics" style="display:none; flex-direction:column; gap:12px;">
+                                            <div style="position:relative; width:100%; height:200px; background:#090d16; border-radius:14px; border:1px solid rgba(255,255,255,0.08); overflow:hidden;">
+                                                <canvas id="phys-canvas-optics" width="488" height="200" style="width:100%; height:100%; display:block;"></canvas>
+                                            </div>
+                                            <div style="background:rgba(0,0,0,0.3); padding:12px; border-radius:12px; border:1px solid rgba(255,255,255,0.05); display:flex; flex-direction:column; gap:10px;">
+                                                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
+                                                    <div>
+                                                        <label style="font-size:0.75rem; color:#94a3b8; display:flex; justify-content:space-between;">Угол падения (θ₁): <span id="phys-opt-angle-val" style="color:#ef4444; font-weight:700;">35°</span></label>
+                                                        <input type="range" id="phys-opt-angle" min="0" max="85" value="35" oninput="window.updatePhysicsOptics()" style="width:100%; accent-color:#ef4444;">
+                                                    </div>
+                                                    <div>
+                                                        <label style="font-size:0.75rem; color:#94a3b8; display:block; margin-bottom:4px;">Вторая среда (n₂):</label>
+                                                        <select id="phys-opt-medium" onchange="window.updatePhysicsOptics()" style="width:100%; background:#1e293b; color:white; border:1px solid rgba(255,255,255,0.1); padding:6px 10px; border-radius:8px; font-size:0.78rem; outline:none;">
+                                                            <option value="1.33">💧 Вода (n=1.33)</option>
+                                                            <option value="1.52">🔮 Стекло (n=1.52)</option>
+                                                            <option value="2.42">💎 Алмаз (n=2.42)</option>
+                                                        </select>
+                                                    </div>
+                                                </div>
+                                                <div style="display:flex; justify-content:space-around; background:rgba(255,255,255,0.03); padding:8px; border-radius:8px; font-size:0.78rem; color:#94a3b8;">
+                                                    <div>Угол преломления (θ₂): <b id="phys-opt-res-angle" style="color:#2dd4bf;">25.6°</b></div>
+                                                    <div>Скорость света: <b id="phys-opt-res-speed" style="color:#38bdf8;">225 408 км/с</b></div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <!-- 4. PENDULUM VIEW -->
+                                        <div id="phys-view-pendulum" style="display:none; flex-direction:column; gap:12px;">
+                                            <div style="position:relative; width:100%; height:200px; background:#090d16; border-radius:14px; border:1px solid rgba(255,255,255,0.08); overflow:hidden;">
+                                                <canvas id="phys-canvas-pendulum" width="488" height="200" style="width:100%; height:100%; display:block;"></canvas>
+                                            </div>
+                                            <div style="background:rgba(0,0,0,0.3); padding:12px; border-radius:12px; border:1px solid rgba(255,255,255,0.05); display:flex; flex-direction:column; gap:10px;">
+                                                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
+                                                    <div>
+                                                        <label style="font-size:0.75rem; color:#94a3b8; display:flex; justify-content:space-between;">Длина нити (L): <span id="phys-pend-len-val" style="color:#ec4899; font-weight:700;">1.5 м</span></label>
+                                                        <input type="range" id="phys-pend-len" min="0.5" max="3.0" step="0.1" value="1.5" oninput="window.updatePhysicsPendulum()" style="width:100%; accent-color:#ec4899;">
+                                                    </div>
+                                                    <div>
+                                                        <label style="font-size:0.75rem; color:#94a3b8; display:flex; justify-content:space-between;">Начальное отклонение: <span id="phys-pend-angle-val" style="color:#ec4899; font-weight:700;">30°</span></label>
+                                                        <input type="range" id="phys-pend-angle" min="5" max="60" value="30" oninput="window.updatePhysicsPendulum()" style="width:100%; accent-color:#ec4899;">
+                                                    </div>
+                                                </div>
+                                                <div style="display:flex; justify-content:space-around; background:rgba(255,255,255,0.03); padding:8px; border-radius:8px; font-size:0.78rem; color:#94a3b8;">
+                                                    <div>Период (T = 2π√(L/g)): <b id="phys-pend-res-period" style="color:#ec4899;">2.46 с</b></div>
+                                                    <div>Частота (f = 1/T): <b id="phys-pend-res-freq" style="color:#a78bfa;">0.41 Гц</b></div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <!-- 5. LIFE VIEW -->
+                                        <div id="phys-view-life" style="display:none; flex-direction:column; gap:10px; max-height:340px; overflow-y:auto; padding-right:4px;">
+                                            <div style="font-size:0.82rem; color:#94a3b8;">Нажмите на явление, чтобы узнать как работают законы физики в повседневной жизни:</div>
+                                            <div style="display:flex; flex-direction:column; gap:8px;">
+                                                <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:10px; padding:10px; cursor:pointer;" onclick="this.querySelector('.life-desc').style.display = this.querySelector('.life-desc').style.display === 'none' ? 'block' : 'none'">
+                                                    <div style="font-weight:700; color:#38bdf8; font-size:0.85rem;">✈️ Почему самолет летает в воздухе?</div>
+                                                    <div class="life-desc" style="display:none; margin-top:6px; font-size:0.78rem; color:#cbd5e1; line-height:1.4;">
+                                                        <b>Закон Бернулли:</b> Форма крыла заставляет воздух над крылом двигаться быстрее, чем под ним. Там где скорость выше — давление ниже. Возникающая разница давлений (подъемная сила) толкает тяжелый самолет вверх!
+                                                    </div>
+                                                </div>
+                                                <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:10px; padding:10px; cursor:pointer;" onclick="this.querySelector('.life-desc').style.display = this.querySelector('.life-desc').style.display === 'none' ? 'block' : 'none'">
+                                                    <div style="font-weight:700; color:#fbbf24; font-size:0.85rem;">🚗 Тормозной путь при удвоении скорости</div>
+                                                    <div class="life-desc" style="display:none; margin-top:6px; font-size:0.78rem; color:#cbd5e1; line-height:1.4;">
+                                                        <b>Кинетическая энергия (E_k = m·v²/2):</b> Энергия зависит от <i>квадрата</i> скорости. Если скорость вырастет в 2 раза, кинетическая энергия вырастет в 4 раза! Тормозам требуется совершить в 4 раза больше работы.
+                                                    </div>
+                                                </div>
+                                                <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:10px; padding:10px; cursor:pointer;" onclick="this.querySelector('.life-desc').style.display = this.querySelector('.life-desc').style.display === 'none' ? 'block' : 'none'">
+                                                    <div style="font-weight:700; color:#34d399; font-size:0.85rem;">🛡️ Зачем нужен ремень безопасности?</div>
+                                                    <div class="life-desc" style="display:none; margin-top:6px; font-size:0.78rem; color:#cbd5e1; line-height:1.4;">
+                                                        <b>1-й закон Ньютона (Инерция):</b> Тело сохраняет состояние движения, пока на него не подействует внешняя сила. При резком торможении ваше тело продолжает двигаться вперед. Ремень дает внешнюю удерживающую силу!
+                                                    </div>
+                                                </div>
+                                                <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:10px; padding:10px; cursor:pointer;" onclick="this.querySelector('.life-desc').style.display = this.querySelector('.life-desc').style.display === 'none' ? 'block' : 'none'">
+                                                    <div style="font-weight:700; color:#c084fc; font-size:0.85rem;">📡 Как микроволновка греет еду?</div>
+                                                    <div class="life-desc" style="display:none; margin-top:6px; font-size:0.78rem; color:#cbd5e1; line-height:1.4;">
+                                                        <b>Резонанс и дипольный сдвиг:</b> Молекулы воды в еде под действием электромагнитных волн 2.45 ГГц вращаются 2.45 миллиарда раз в секунду, выделяя теплоту от трения!
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div id="py-compiler-panel" style="display:none; flex-direction:column; width:420px; max-width:100%; flex-shrink:0; position:sticky; top:20px; box-sizing:border-box;">
                                 <div style="background:rgba(15,23,42,0.9); border:1px solid rgba(59,130,246,0.35); border-radius:20px; overflow:hidden; box-shadow: 0 20px 50px rgba(0,0,0,0.5);">
                                     <!-- Panel Header -->
                                     <div style="display:flex; align-items:center; justify-content:space-between; padding:14px 18px; background:rgba(59,130,246,0.1); border-bottom:1px solid rgba(59,130,246,0.2);">
@@ -1472,17 +1821,81 @@ for i in range(5):
                         </div>
 
                         <!-- Camera Feed (floating top-right) -->
+                                                <!-- AI ML Proctoring HUD Floating Wrapper -->
                         <div id="camera-feed-wrapper"
-                            style="position:absolute; top:80px; right:24px; z-index:100; border-radius:12px; overflow:hidden; border:2px solid rgba(239,68,68,0.5); box-shadow:0 0 20px rgba(239,68,68,0.2);">
-                            <video id="proctor-video" autoplay muted playsinline
-                                style="width:160px; height:120px; object-fit:cover; display:block;"></video>
-                            <div
-                                style="position:absolute; top:6px; left:8px; display:flex; align-items:center; gap:5px;">
-                                <div class="live-dot"></div>
-                                <span
-                                    style="font-size:0.65rem; font-weight:700; color:white; letter-spacing:0.08em;">LIVE</span>
+                            style="position:absolute; top:80px; right:24px; z-index:100; border-radius:16px; overflow:hidden; border:2px solid rgba(139,92,246,0.6); background:rgba(15,23,42,0.95); box-shadow:0 12px 36px rgba(0,0,0,0.6); width:240px; display:flex; flex-direction:column;">
+                            
+                            <!-- Video Feed & Mesh Overlay Container -->
+                            <div style="position:relative; width:100%; height:150px; background:#000;">
+                                <video id="proctor-video" autoplay muted playsinline
+                                    style="width:100%; height:100%; object-fit:cover; display:block; transform: scaleX(-1);"></video>
+                                <canvas id="proctor-mesh-canvas" width="240" height="150"
+                                    style="position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none;"></canvas>
+
+                                <!-- Live Badge -->
+                                <div style="position:absolute; top:8px; left:8px; display:flex; align-items:center; gap:6px; background:rgba(0,0,0,0.6); padding:3px 8px; border-radius:12px; backdrop-filter:blur(4px); border:1px solid rgba(255,255,255,0.1);">
+                                    <div class="live-dot" style="width:8px; height:8px; background:#ef4444; border-radius:50%; box-shadow:0 0 8px #ef4444;"></div>
+                                    <span style="font-size:0.65rem; font-weight:800; color:white; letter-spacing:0.05em;">AI ML LIVE</span>
+                                </div>
+
+                                <!-- Cheat Risk Badge -->
+                                <div id="ml-proctor-risk-badge" style="position:absolute; bottom:8px; left:8px; font-size:0.68rem; font-weight:700; padding:3px 8px; border-radius:8px; background:rgba(16,185,129,0.85); color:white; box-shadow:0 2px 6px rgba(0,0,0,0.4);">
+                                    🟢 Внимателен (0% рисков)
+                                </div>
+                                <canvas id="snapshot-canvas" style="display:none;"></canvas>
                             </div>
-                            <canvas id="snapshot-canvas" style="display:none;"></canvas>
+
+                            <!-- Softmax Probabilities HUD -->
+                            <div style="padding:10px 12px; display:flex; flex-direction:column; gap:6px; background:rgba(0,0,0,0.4); border-top:1px solid rgba(255,255,255,0.08);">
+                                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:2px;">
+                                    <span style="font-size:0.68rem; color:#a78bfa; font-weight:700;">🧠 Softmax Classification:</span>
+                                    <span style="font-size:0.65rem; color:#64748b;" id="ml-fps-counter">30 FPS</span>
+                                </div>
+
+                                <!-- 1. Focused Probability -->
+                                <div>
+                                    <div style="display:flex; justify-content:space-between; font-size:0.65rem; color:#cbd5e1; margin-bottom:2px;">
+                                        <span>🎯 Внимателен (Focused):</span>
+                                        <b id="softmax-prob-focused" style="color:#10b981;">95%</b>
+                                    </div>
+                                    <div style="width:100%; height:4px; background:rgba(255,255,255,0.1); border-radius:2px; overflow:hidden;">
+                                        <div id="softmax-bar-focused" style="width:95%; height:100%; background:#10b981; transition:width 0.2s;"></div>
+                                    </div>
+                                </div>
+
+                                <!-- 2. Cheating Probability -->
+                                <div>
+                                    <div style="display:flex; justify-content:space-between; font-size:0.65rem; color:#cbd5e1; margin-bottom:2px;">
+                                        <span>👀 Списывание (Looking Away):</span>
+                                        <b id="softmax-prob-cheating" style="color:#f59e0b;">3%</b>
+                                    </div>
+                                    <div style="width:100%; height:4px; background:rgba(255,255,255,0.1); border-radius:2px; overflow:hidden;">
+                                        <div id="softmax-bar-cheating" style="width:3%; height:100%; background:#f59e0b; transition:width 0.2s;"></div>
+                                    </div>
+                                </div>
+
+                                <!-- 3. Stressed Probability -->
+                                <div>
+                                    <div style="display:flex; justify-content:space-between; font-size:0.65rem; color:#cbd5e1; margin-bottom:2px;">
+                                        <span>😰 Стресс / Волнение (Stress):</span>
+                                        <b id="softmax-prob-stressed" style="color:#a78bfa;">2%</b>
+                                    </div>
+                                    <div style="width:100%; height:4px; background:rgba(255,255,255,0.1); border-radius:2px; overflow:hidden;">
+                                        <div id="softmax-bar-stressed" style="width:2%; height:100%; background:#a78bfa; transition:width 0.2s;"></div>
+                                    </div>
+                                </div>
+
+                                <!-- Live Stress Index Meter -->
+                                <div style="margin-top:4px; padding-top:6px; border-top:1px solid rgba(255,255,255,0.05);">
+                                    <div style="display:flex; justify-content:space-between; font-size:0.68rem; font-weight:700; color:#e2e8f0; margin-bottom:3px;">
+                                        <span>📈 Индекс стресса лица:</span>
+                                        <b id="ml-stress-meter-val" style="color:#10b981;">18% (Норма)</b>
+                                    </div>
+                                    <div style="width:100%; height:6px; background:rgba(255,255,255,0.1); border-radius:3px; overflow:hidden;">
+                                        <div id="ml-stress-meter-bar" style="width:18%; height:100%; background:linear-gradient(90deg, #10b981, #f59e0b); transition:width 0.3s;"></div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
 
                         <!-- Exam Body (scrollable questions) -->
@@ -1535,6 +1948,19 @@ for i in range(5):
                         </div>
                     </div>
                 </div>
+
+                <!-- View: Presentations (Student) -->
+                <div id="s-view-presentations" class="student-subview student-workspace" style="display:none; padding:30px; overflow-y:auto;">
+                    <div style="max-width: 1200px; margin: 0 auto; width: 100%;">
+                        <div style="margin-bottom:24px;">
+                            <h2 style="font-size:1.8rem; font-weight:700; color:white; margin:0;">📊 Учебные Презентации</h2>
+                            <p style="color:#94a3b8; font-size:0.85rem; margin-top:4px;">Интерактивные презентации от ваших учителей по предметам</p>
+                        </div>
+                        <div id="s-presentations-grid" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap:20px;">
+                            <!-- Rendered by presentations.js -->
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -1560,8 +1986,10 @@ for i in range(5):
     <!-- Application scripts -->
     <script src="js/env.js"></script>
     <script src="js/firebase-config.js"></script>
+    <script src="js/translations.js?v=1"></script>
     <script src="js/videoPipeline.js?v=5"></script>
     <script src="js/app.js?v=5"></script>
+    <script src="js/presentations.js"></script>
     <!-- ==========================
          LESSON VIEWER MODAL
          ========================== -->
@@ -1616,6 +2044,117 @@ for i in range(5):
             </div>
         </div>
     </div>
+</div>
+
+<!-- Presentation Editor Modal -->
+<div id="presentation-editor-modal" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.85); backdrop-filter:blur(10px); z-index:9000; align-items:center; justify-content:center; padding:20px;">
+    <div style="background:#0f172a; border:1px solid rgba(139,92,246,0.3); border-radius:24px; max-width:1000px; width:100%; max-height:90vh; display:flex; flex-direction:column; overflow:hidden; box-shadow:0 25px 60px rgba(0,0,0,0.6);">
+        <!-- Modal Header -->
+        <div style="display:flex; align-items:center; justify-content:space-between; padding:18px 24px; background:rgba(139,92,246,0.1); border-bottom:1px solid rgba(139,92,246,0.2);">
+            <div style="display:flex; align-items:center; gap:10px;">
+                <span style="font-size:1.4rem;">✏️</span>
+                <h3 style="color:white; margin:0; font-size:1.2rem;">Редактор Презентации</h3>
+            </div>
+            <button onclick="window.closePresentationEditor()" style="background:none; border:none; color:#cbd5e1; font-size:1.5rem; cursor:pointer;">&times;</button>
+        </div>
+
+        <!-- Meta Settings -->
+        <div style="padding:16px 24px; background:rgba(0,0,0,0.2); border-bottom:1px solid rgba(255,255,255,0.05); display:grid; grid-template-columns: 2fr 1fr 1fr; gap:14px;">
+            <div>
+                <label style="font-size:0.75rem; color:#94a3b8; display:block; margin-bottom:4px;">Название презентации:</label>
+                <input type="text" id="edit-pres-title" style="width:100%; padding:8px 12px; background:#1e293b; color:white; border:1px solid rgba(255,255,255,0.1); border-radius:8px; outline:none;">
+            </div>
+            <div>
+                <label style="font-size:0.75rem; color:#94a3b8; display:block; margin-bottom:4px;">Предмет:</label>
+                <select id="edit-pres-subject" style="width:100%; padding:8px 12px; background:#1e293b; color:white; border:1px solid rgba(255,255,255,0.1); border-radius:8px; outline:none;">
+                    <option value="Физика">Физика</option>
+                    <option value="Информатика">Информатика</option>
+                    <option value="Естествознание">Естествознание</option>
+                    <option value="Математика">Математика</option>
+                    <option value="История Казахстана">История Казахстана</option>
+                    <option value="Самопознание">Самопознание</option>
+                </select>
+            </div>
+            <div>
+                <label style="font-size:0.75rem; color:#94a3b8; display:block; margin-bottom:4px;">Тема оформления:</label>
+                <select id="edit-pres-theme" style="width:100%; padding:8px 12px; background:#1e293b; color:white; border:1px solid rgba(255,255,255,0.1); border-radius:8px; outline:none;">
+                    <option value="space-violet">Фиолетовый Космос</option>
+                    <option value="cyber">Киберпанк Синий</option>
+                    <option value="emerald">Изумрудная Наука</option>
+                    <option value="amber">Янтарное Золото</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Slide Tabs & Slide Editor Form -->
+        <div style="flex:1; display:flex; flex-direction:column; padding:20px; overflow-y:auto; gap:16px;">
+            <div id="editor-slide-tabs" style="display:flex; gap:8px; overflow-x:auto; padding-bottom:8px; border-bottom:1px solid rgba(255,255,255,0.08);"></div>
+            <div id="editor-slide-form" style="background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.05); border-radius:16px; padding:20px;"></div>
+        </div>
+
+        <!-- Modal Footer Actions -->
+        <div style="padding:16px 24px; background:rgba(0,0,0,0.3); border-top:1px solid rgba(255,255,255,0.08); display:flex; justify-content:flex-end; gap:12px;">
+            <button onclick="window.closePresentationEditor()" class="btn-secondary" style="padding:8px 18px;">Отмена</button>
+            <button onclick="window.saveEditorChanges()" style="padding:8px 24px; background:linear-gradient(135deg,#10b981,#059669); color:white; border:none; border-radius:10px; font-weight:700; cursor:pointer;">💾 Сохранить презентацию</button>
+        </div>
+    </div>
+</div>
+
+<!-- Fullscreen Presentation Player Modal -->
+<div id="presentation-player-modal" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:#060913; z-index:9999; flex-direction:column; overflow:hidden;">
+    <!-- Top Control Header -->
+    <div style="display:flex; align-items:center; justify-content:space-between; padding:12px 24px; background:rgba(15,23,42,0.9); border-bottom:1px solid rgba(255,255,255,0.1); backdrop-filter:blur(10px); z-index:10;">
+        <div style="display:flex; align-items:center; gap:14px;">
+            <span style="font-size:1.4rem;">📊</span>
+            <div>
+                <h3 id="player-pres-title" style="color:white; margin:0; font-size:1.05rem; font-weight:700;">Название презентации</h3>
+            </div>
+        </div>
+        <div style="display:flex; align-items:center; gap:14px;">
+            <span id="player-slide-counter" style="background:rgba(139,92,246,0.25); color:#c084fc; border:1px solid rgba(139,92,246,0.4); padding:4px 14px; border-radius:20px; font-size:0.85rem; font-weight:700;">1 / 5</span>
+            <button id="laser-toggle-btn" onclick="window.toggleLaserPointer()" style="padding:6px 14px; background:rgba(255,255,255,0.1); color:#cbd5e1; border:1px solid rgba(255,255,255,0.15); border-radius:8px; font-size:0.8rem; font-weight:600; cursor:pointer; display:flex; align-items:center; gap:6px;">
+                🔴 Указка (L)
+            </button>
+            <button onclick="window.toggleSpeakerNotes()" style="padding:6px 14px; background:rgba(255,255,255,0.1); color:#cbd5e1; border:1px solid rgba(255,255,255,0.15); border-radius:8px; font-size:0.8rem; font-weight:600; cursor:pointer;">
+                📝 Заметки
+            </button>
+            <button onclick="window.closePresentationPlayer()" style="background:rgba(239,68,68,0.2); color:#fca5a5; border:1px solid rgba(239,68,68,0.4); padding:6px 16px; border-radius:8px; font-weight:700; font-size:0.85rem; cursor:pointer;">
+                ✕ Выйти (Esc)
+            </button>
+        </div>
+    </div>
+
+    <!-- Slide Stage Canvas & Content -->
+    <div id="player-slide-stage" style="flex:1; position:relative; display:flex; align-items:center; justify-content:center; padding:40px; overflow:hidden;">
+        <!-- Laser Dot Overlay -->
+        <div id="player-laser-dot" style="display:none; position:absolute; width:12px; height:12px; background:#ef4444; border-radius:50%; box-shadow:0 0 15px #ef4444, 0 0 30px #ef4444; pointer-events:none; transform:translate(-50%, -50%); z-index:100;"></div>
+        
+        <!-- Speaker Notes Box -->
+        <div id="player-speaker-notes" style="display:none; position:absolute; bottom:20px; left:20px; right:20px; background:rgba(15,23,42,0.92); border:1px solid rgba(139,92,246,0.4); border-radius:14px; padding:16px; color:#c084fc; font-size:0.95rem; z-index:20; backdrop-filter:blur(8px);"></div>
+
+        <!-- Inner Content Card -->
+        <div style="max-width:1100px; width:100%; height:100%; max-height:650px; background:rgba(0,0,0,0.2); border:1px solid rgba(255,255,255,0.1); border-radius:24px; padding:40px; display:flex; flex-direction:column; position:relative; box-shadow:0 30px 80px rgba(0,0,0,0.5);">
+            <div id="player-slide-content" style="flex:1; width:100%; height:100%;"></div>
+        </div>
+    </div>
+
+    <!-- Bottom Progress & Navigation Bar -->
+    <div style="background:rgba(15,23,42,0.95); border-top:1px solid rgba(255,255,255,0.1); padding:12px 24px; display:flex; align-items:center; justify-content:space-between;">
+        <button onclick="window.playerPrevSlide()" style="padding:10px 24px; background:rgba(255,255,255,0.1); color:white; border:1px solid rgba(255,255,255,0.2); border-radius:12px; font-weight:700; font-size:0.9rem; cursor:pointer;">
+            ⬅ Назад (←)
+        </button>
+
+        <!-- Progress bar -->
+        <div style="flex:1; max-width:500px; margin:0 20px; background:rgba(255,255,255,0.1); height:8px; border-radius:4px; overflow:hidden;">
+            <div id="player-progress-bar" style="width:20%; height:100%; background:linear-gradient(90deg,#8b5cf6,#ec4899); transition:width 0.3s ease;"></div>
+        </div>
+
+        <button onclick="window.playerNextSlide()" style="padding:10px 24px; background:linear-gradient(135deg,#8b5cf6,#ec4899); color:white; border:none; border-radius:12px; font-weight:700; font-size:0.9rem; cursor:pointer; box-shadow:0 4px 15px rgba(139,92,246,0.3);">
+            Далее (→) ➡️
+        </button>
+    </div>
+</div>
+
 </body>
 
 </html>

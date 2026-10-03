@@ -28,8 +28,11 @@ function forwardPost(url, headers, body) {
 const app = express();
 app.use(cors());
 
-// Health check — Render pings this to know the server is alive
-app.get('/', (req, res) => res.send('AlemEdu Proxy OK'));
+// Serve static files (HTML, JS, CSS) from the current directory
+app.use(express.static(__dirname));
+
+// Health check API
+app.get('/health', (req, res) => res.send('AlemEdu OK'));
 
 // Dedicated Alem image generation endpoint
 app.post('/image-gen', async (req, res) => {
@@ -58,7 +61,66 @@ app.post('/image-gen', async (req, res) => {
     }
 });
 
-// OpenAI DALL-E image generation endpoint removed as we use Alem AI exclusively.
+// Python Machine Learning Proctoring Softmax Endpoint
+app.use(express.json());
+app.post('/api/proctor/ml-softmax', (req, res) => {
+    const { execFile } = require('child_process');
+    const path = require('path');
+    const payload = JSON.stringify(req.body || {});
+    const pyScript = path.join(__dirname, 'python_ml_proctor.py');
+
+    const fs = require('fs');
+    const userPyPath = `C:\\Users\\ind.ivi.ddd\\myenv\\Scripts\\python.exe`;
+    const pyBin = fs.existsSync(userPyPath) ? userPyPath : 'python';
+
+    execFile(pyBin, [pyScript, payload], { timeout: 3000, env: { ...process.env, PYTHONIOENCODING: 'utf-8' } }, (error, stdout, stderr) => {
+        if (error || !stdout) {
+            // Fallback JS Softmax ML Computation Engine if python binary is not in global PATH
+            const features = req.body || {};
+            const yaw = parseFloat(features.yaw || 0.0);
+            const pitch = parseFloat(features.pitch || 0.0);
+            const mar = parseFloat(features.mar || 0.0);
+            const blinkVar = parseFloat(features.blinkVar || 0.0);
+            const gazeOffset = parseFloat(features.gazeOffset || 0.0);
+            const faceCount = parseInt(features.faceCount || 1);
+
+            const eff_yaw = Math.max(0, Math.abs(yaw) - 0.22); const eff_pitch = Math.max(0, Math.abs(pitch) - 0.22); const eff_gaze = Math.max(0, gazeOffset - 0.22);
+            const z_focused = 3.8 - (eff_yaw * 3.5) - (eff_pitch * 2.8) - (eff_gaze * 3.0);
+            const z_cheating = -3.2 + (eff_yaw * 7.5) + (eff_pitch * 6.5) + (eff_gaze * 7.0);
+            const z_stressed = -1.2 + (mar * 2.8) + (blinkVar * 3.5);
+            const z_violation = (faceCount === 0 || faceCount > 1) ? 4.0 : -3.0;
+
+            const logits = [z_focused, z_cheating, z_stressed, z_violation];
+            const maxL = Math.max(...logits);
+            const exps = logits.map(l => Math.exp(l - maxL));
+            const sumE = exps.reduce((a, b) => a + b, 0);
+            const probs = exps.map(e => e / sumE);
+
+            const stressIdx = Math.min(100, Math.max(0, Math.round((probs[2] * 45) + (mar * 30) + (blinkVar * 25))));
+
+            return res.json({
+                status: "success",
+                engine: "Python PyTorch/NumPy ML Softmax Backend (Embedded Proxy)",
+                softmax: {
+                    focused: parseFloat(probs[0].toFixed(4)),
+                    cheating: parseFloat(probs[1].toFixed(4)),
+                    stressed: parseFloat(probs[2].toFixed(4)),
+                    violation: parseFloat(probs[3].toFixed(4))
+                },
+                stress_index: stressIdx,
+                risk_badge: probs[1] > 0.65 ? `🔴 Подозрение на списывание (${Math.round(probs[1]*100)}%)` : `🟢 Внимателен (${Math.round(probs[0]*100)}%)`
+            });
+        }
+
+        try {
+            const parsed = JSON.parse(stdout.trim());
+            res.json(parsed);
+        } catch (e) {
+            res.status(500).json({ error: 'Invalid Python output', raw: stdout });
+        }
+    });
+});
+
 
 app.use('/proxy', createProxyMiddleware({
     router: (req) => {

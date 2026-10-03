@@ -166,9 +166,9 @@ Output MUST be a valid JSON array of objects, with each object having properties
                 console.log(`[processVisuals] Generating image for concept: ${item.concept}`);
                 try {
                     // Use dedicated /image-gen proxy when running locally (avoids CORS issues)
-                    const imageGenUrl = window.ENV.CORS_PROXY
+                    const imageGenUrl = (window.location.protocol === 'file:')
                         ? 'http://localhost:3000/image-gen'
-                        : 'https://llm.alem.ai/v1/images/generations';
+                        : '/image-gen';
 
                     const imgRes = await fetch(imageGenUrl, {
                         method: 'POST',

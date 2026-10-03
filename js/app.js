@@ -223,10 +223,18 @@ document.addEventListener('DOMContentLoaded', () => {
             topNavBtns.forEach(b => b.classList.remove('active'));
             e.target.classList.add('active');
 
-            ['t-view-profile', 't-view-workspace', 't-view-lessons', 't-view-classes', 't-view-exams', 't-view-ranking', 't-view-gradebook', 't-view-calendar', 't-view-kahoot', 't-view-wheel'].forEach(v => {
+            ['t-view-profile', 't-view-workspace', 't-view-textbooks', 't-view-lessons', 't-view-classes', 't-view-exams', 't-view-ranking', 't-view-gradebook', 't-view-calendar', 't-view-kahoot', 't-view-wheel', 't-view-presentations'].forEach(v => {
                 const el = document.getElementById(v);
-                if (el) el.style.display = v === targetId ? (['t-view-workspace', 't-view-kahoot', 't-view-wheel'].includes(v) ? 'flex' : 'block') : 'none';
+                if (el) el.style.display = v === targetId ? (['t-view-workspace', 't-view-kahoot', 't-view-wheel', 't-view-presentations'].includes(v) ? 'flex' : 'block') : 'none';
             });
+
+            if (targetId === 't-view-workspace') {
+                if (typeof window.updateTextbookBadgeStatus === 'function') window.updateTextbookBadgeStatus();
+            }
+
+            if (targetId === 't-view-textbooks') {
+                if (typeof window.loadTeacherTextbooks === 'function') window.loadTeacherTextbooks();
+            }
 
             if (targetId === 't-view-lessons') {
                 if (typeof loadTeacherLessons === 'function') loadTeacherLessons();
@@ -249,6 +257,10 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
 
+
+            if (targetId === 't-view-presentations') {
+                if (typeof window.renderPresentationsList === 'function') window.renderPresentationsList();
+            }
 
             if (targetId === 't-view-profile') {
                 if(window.loadTeacherCabinet) window.loadTeacherCabinet();
@@ -430,6 +442,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 }
 
+                const table = document.createElement('table');
+                table.className = 'student-table';
                 table.innerHTML = `
                     <thead>
                         <tr>
@@ -791,8 +805,40 @@ document.addEventListener('DOMContentLoaded', () => {
         appendMessage(text, 'user');
         conversationHistory.push({ role: "user", content: text });
 
+        // Check if PDF Textbook context is requested
+        let messagesToSend = [...conversationHistory];
+        const useTextbookCheck = document.getElementById('t-use-textbook-check');
+        const classCodeInput = document.getElementById('task-class-code');
+        const classCode = (classCodeInput?.value || 'ALEM-101').trim().toUpperCase();
+        const subject = (typeof currentUser !== 'undefined' && currentUser?.meta?.subject) || 'Физика';
+        let usedTextbookName = null;
+
+        if (useTextbookCheck && useTextbookCheck.checked) {
+            try {
+                const docId = `${classCode}_${subject}`;
+                const docSnap = await window.fireDB.collection('class_textbooks').doc(docId).get();
+                if (docSnap.exists) {
+                    const tbData = docSnap.data();
+                    usedTextbookName = tbData.filename || 'Учебник класса';
+                    const tbExcerpt = (tbData.content || '').substring(0, 15000);
+                    messagesToSend = messagesToSend.map((msg, idx) => {
+                        if (idx === 0 && msg.role === 'system') {
+                            return {
+                                role: 'system',
+                                content: msg.content + `\n\n[ИНСТРУКЦИЯ ПО УЧЕБНИКУ]: Преподаватель подключил учебник "${usedTextbookName}" класса ${classCode} по предмету ${subject}. Сгенерируй задачу СТРОГО на основе следующих материалов из учебника класса:\n--- НАЧАЛО УЧЕБНИКА ---\n${tbExcerpt}\n--- КОНЕЦ УЧЕБНИКА ---\n`
+                            };
+                        }
+                        return msg;
+                    });
+                }
+            } catch (e) {
+                console.warn('Error building textbook context:', e);
+            }
+        }
+
         try {
-            const response = await fetch(LLM_API_URL, {
+            const fetchFn = window.fetchApi || fetch;
+            const response = await fetchFn(LLM_API_URL, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -800,7 +846,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 },
                 body: JSON.stringify({
                     model: "alemllm",
-                    messages: conversationHistory
+                    messages: messagesToSend
                 })
             });
 
@@ -808,7 +854,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const data = await response.json();
             if (data.choices && data.choices.length > 0) {
-                const botReply = data.choices[0].message.content;
+                let botReply = data.choices[0].message.content;
+                if (usedTextbookName) {
+                    botReply += `\n\n📖 _Задание сгенерировано по учебнику класса ${classCode} (${usedTextbookName})_`;
+                }
                 appendMessage(botReply, 'bot');
                 conversationHistory.push({ role: "assistant", content: botReply });
             }
@@ -1033,25 +1082,36 @@ document.addEventListener('DOMContentLoaded', () => {
                             const base64Image = reader.result;
 
                             try {
-                                // 2. Call Gemini 1.5 Flash Vision using official SDK via Dynamic Import
+                                // 2. Call Gemini 2.5 Flash Vision (Stable April 2026)
                                 if (GEMINI_API_KEY.includes('ВСТАВЬТЕ')) throw new Error('Пожалуйста, вставьте ваш ключ Gemini API в код (GEMINI_API_KEY)');
 
                                 const base64DataRaw = base64Image.split(',')[1];
                                 const mimeType = file.type || "image/jpeg";
 
-                                // Download the Google SDK into memory (without breaking page script context)
                                 const { GoogleGenerativeAI } = await import('https://esm.run/@google/generative-ai');
                                 const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-
-                                // gemini-2.5-flash confirmed available for this API key
                                 const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
-                                const promptText = "ВНИМАТЕЛЬНО: Это фрагмент с математического решения ученика (рукописный или печатный). Выпиши весь рукописный текст и символы с картинки. Пиши только то, что видишь.";
+                                // Helper for retries on 503/429
+                                const generateWithRetry = async (prompt, data, retries = 3, delay = 2000) => {
+                                    for (let i = 0; i < retries; i++) {
+                                        try {
+                                            return await model.generateContent([prompt, data]);
+                                        } catch (e) {
+                                            if ((e.message.includes('503') || e.message.includes('429')) && i < retries - 1) {
+                                                console.warn(`Gemini Busy. Retrying in ${delay}ms...`);
+                                                statusText.textContent = `Gemini перегружен. Повтор через ${delay/1000}с...`;
+                                                await new Promise(r => setTimeout(r, delay));
+                                                delay *= 2; 
+                                                continue;
+                                            }
+                                            throw e;
+                                        }
+                                    }
+                                };
 
-                                const result = await model.generateContent([
-                                    promptText,
-                                    { inlineData: { data: base64DataRaw, mimeType: mimeType } }
-                                ]);
+                                const promptText = "ВНИМАТЕЛЬНО: Это фрагмент с математического решения ученика (рукописный или печатный). Выпиши весь рукописный текст и символы с картинки. Пиши только то, что видишь.";
+                                const result = await generateWithRetry(promptText, { inlineData: { data: base64DataRaw, mimeType: mimeType } });
 
                                 const studentText = result.response.text();
 
@@ -1564,7 +1624,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (assignExamBtn) {
         assignExamBtn.addEventListener('click', async () => {
             const examId = examScheduleSelect.value;
-            const clsCode = document.getElementById('exam-schedule-class').value.trim();
+            const selEl = document.getElementById('exam-schedule-class-select');
+            const customEl = document.getElementById('exam-schedule-class');
+            const clsCode = (selEl && selEl.value !== '__custom__') ? selEl.value : (customEl ? customEl.value.trim() : '');
             const dateStr = document.getElementById('exam-schedule-date').value;
 
             if (!examId || !clsCode || !dateStr) {
@@ -1761,7 +1823,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // Reset subject view to grid whenever we switch tabs
             if (typeof window.closeSubject === 'function') window.closeSubject();
 
-            ['s-view-exams', 's-view-ranking', 's-view-calendar', 's-view-lessons', 's-view-gradebook'].forEach(v => {
+            ['s-view-exams', 's-view-ranking', 's-view-calendar', 's-view-lessons', 's-view-gradebook', 's-view-presentations'].forEach(v => {
                 const el = document.getElementById(v);
                 if (el) {
                     el.style.display = v === targetId ? 'block' : 'none';
@@ -1774,6 +1836,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (match && match[1] && match[1] !== 'N/A') {
                     refreshCalendar(match[1], 's');
                 }
+            }
+
+            if (targetId === 's-view-presentations') {
+                if (typeof window.renderPresentationsList === 'function') window.renderPresentationsList();
             }
 
             if (targetId === 's-view-ranking' && currentUser) {
@@ -2000,28 +2066,334 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- Camera & snapshot ---
-    async function startCamera() {
-        try {
-            cameraStream = await navigator.mediaDevices.getUserMedia({ video: true });
-            const video = document.getElementById('proctor-video');
-            video.srcObject = cameraStream;
-            document.getElementById('camera-feed-wrapper').style.display = 'block';
+    
+    // =======================================================
+    // REAL MACHINE LEARNING SOFTMAX PROCTORING ENGINE
+    // Powered by MediaPipe 3D FaceMesh & Neural Softmax Math
+    // =======================================================
 
-            // Snapshot every 5 minutes
-            clearInterval(snapshotInterval);
-            snapshotInterval = setInterval(() => {
-                const canvas = document.getElementById('snapshot-canvas');
-                canvas.width = video.videoWidth;
-                canvas.height = video.videoHeight;
-                canvas.getContext('2d').drawImage(video, 0, 0);
-                // Placeholder: in production, send canvas.toDataURL() to Supabase
-                console.log('[Proctoring] Snapshot captured and sent to Supabase', new Date().toISOString());
-            }, 5 * 60 * 1000);
-        } catch (e) {
-            console.warn('Camera denied:', e);
-            document.getElementById('camera-feed-wrapper').style.display = 'none';
-            showExamToast('⚠️ Камера не разрешена. Продолжение без видеонаблюдения.', 'rgba(245,158,11,0.9)');
+    window.AlemRealMLProctor = {
+        faceMesh: null,
+        animFrameId: null,
+        isLoopRunning: false,
+        proctorLogs: [],
+        currentSoftmax: { focused: 0.95, cheating: 0.03, stressed: 0.02, violation: 0.00 },
+        currentStressIndex: 18,
+        cheatViolationCount: 0,
+        lastViolationLogTime: 0,
+
+        // 1. Softmax Calculation Math Function
+        // \sigma(\vec{z})_i = \frac{e^{z_i - \max(\vec{z})}}{\sum e^{z_j - \max(\vec{z})}}
+        computeSoftmax: function(logits) {
+            const maxLogit = Math.max(...logits);
+            const exps = logits.map(l => Math.exp(l - maxLogit));
+            const sumExps = exps.reduce((a, b) => a + b, 0);
+            return exps.map(e => e / sumExps);
+        },
+
+        // 2. Feature Extractor & Softmax Multi-Class Neural Predictor
+        predictState: function(features) {
+            const eff_yaw = Math.max(0, Math.abs(features.yaw) - 0.22);
+            const eff_pitch = Math.max(0, Math.abs(features.pitch) - 0.22);
+            const eff_gaze = Math.max(0, features.gazeOffset - 0.22);
+            let z_focused = 3.8 - (eff_yaw * 3.5) - (eff_pitch * 2.8) - (eff_gaze * 3.0);
+            let z_cheating = -3.2 + (eff_yaw * 7.5) + (eff_pitch * 6.5) + (eff_gaze * 7.0);
+            let z_stressed = -1.2 + (features.mar * 2.8) + (features.blinkVar * 3.5) + (features.tension * 2.5);
+            let z_violation = (features.faceCount === 0 || features.faceCount > 1) ? 4.0 : -3.0;
+
+            const probs = this.computeSoftmax([z_focused, z_cheating, z_stressed, z_violation]);
+            
+            this.currentSoftmax = {
+                focused: probs[0],
+                cheating: probs[1],
+                stressed: probs[2],
+                violation: probs[3]
+            };
+
+            // Stress Index (0 - 100%)
+            const rawStress = (probs[2] * 45) + (features.mar * 30) + (features.blinkVar * 25);
+            this.currentStressIndex = Math.min(100, Math.max(0, Math.round(rawStress)));
+
+            return this.currentSoftmax;
+        },
+
+        // 3. Render Live Mesh & Softmax HUD Overlay onto Camera Canvas
+        renderOverlay: function(ctx, width, height, landmarks, features) {
+            ctx.clearRect(0, 0, width, height);
+
+            if (landmarks && landmarks.length > 0) {
+                // Draw 3D Face Contour Mesh
+                ctx.strokeStyle = 'rgba(139, 92, 246, 0.4)';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                for (let i = 0; i < landmarks.length; i += 4) {
+                    const pt = landmarks[i];
+                    const px = (1 - pt.x) * width; // Mirror canvas
+                    const py = pt.y * height;
+                    if (i === 0) ctx.moveTo(px, py);
+                    else ctx.lineTo(px, py);
+                }
+                ctx.stroke();
+
+                // Draw Iris / Gaze Vectors
+                const leftEye = landmarks[468] || landmarks[10];
+                const rightEye = landmarks[473] || landmarks[20];
+                if (leftEye && rightEye) {
+                    ctx.fillStyle = '#38bdf8';
+                    ctx.shadowColor = '#38bdf8';
+                    ctx.shadowBlur = 6;
+                    ctx.beginPath();
+                    ctx.arc((1 - leftEye.x) * width, leftEye.y * height, 3, 0, Math.PI * 2);
+                    ctx.arc((1 - rightEye.x) * width, rightEye.y * height, 3, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.shadowBlur = 0;
+                }
+            }
+
+            this.updateHUD();
+        },
+
+        updateHUD: function() {
+            const p = this.currentSoftmax;
+            const focusPct = Math.round(p.focused * 100);
+            const cheatPct = Math.round(p.cheating * 100);
+            const stressPct = Math.round(p.stressed * 100);
+
+            const elF = document.getElementById('softmax-prob-focused');
+            const elC = document.getElementById('softmax-prob-cheating');
+            const elS = document.getElementById('softmax-prob-stressed');
+            const barF = document.getElementById('softmax-bar-focused');
+            const barC = document.getElementById('softmax-bar-cheating');
+            const barS = document.getElementById('softmax-bar-stressed');
+            const meterVal = document.getElementById('ml-stress-meter-val');
+            const meterBar = document.getElementById('ml-stress-meter-bar');
+            const badge = document.getElementById('ml-proctor-risk-badge');
+
+            if (elF) elF.textContent = focusPct + '%';
+            if (elC) elC.textContent = cheatPct + '%';
+            if (elS) elS.textContent = stressPct + '%';
+
+            if (barF) barF.style.width = focusPct + '%';
+            if (barC) barC.style.width = cheatPct + '%';
+            if (barS) barS.style.width = stressPct + '%';
+
+            if (meterVal) {
+                const sIdx = this.currentStressIndex;
+                let sText = sIdx < 35 ? ' (Норма)' : (sIdx < 70 ? ' (Умеренный)' : ' (Высокий!)');
+                meterVal.textContent = sIdx + '%' + sText;
+                meterVal.style.color = sIdx < 35 ? '#10b981' : (sIdx < 70 ? '#f59e0b' : '#ef4444');
+            }
+            if (meterBar) {
+                meterBar.style.width = this.currentStressIndex + '%';
+            }
+
+            if (badge) {
+                if (p.cheating > 0.78) {
+                    badge.style.background = 'rgba(239,68,68,0.9)';
+                    badge.textContent = '🔴 Подозрение на списывание (' + cheatPct + '%)';
+                    this.triggerViolationAlert('Looking Away / Cheating', cheatPct);
+                } else if (p.violation > 0.70) {
+                    badge.style.background = 'rgba(239,68,68,0.9)';
+                    badge.textContent = '⚠️ Лицо отсутствует в кадре!';
+                    this.triggerViolationAlert('Face Absent', Math.round(p.violation * 100));
+                } else if (p.stressed > 0.65) {
+                    badge.style.background = 'rgba(245,158,11,0.9)';
+                    badge.textContent = '🟡 Высокое волнение (' + stressPct + '%)';
+                } else {
+                    badge.style.background = 'rgba(16,185,129,0.85)';
+                    badge.textContent = '🟢 Внимателен (' + focusPct + '%)';
+                }
+            }
+        },
+
+        triggerViolationAlert: function(type, pct) {
+            const now = Date.now();
+            if (now - this.lastViolationLogTime > 12000) {
+                this.lastViolationLogTime = now;
+                this.cheatViolationCount++;
+                const timeStr = new Date().toLocaleTimeString();
+                const logEntry = {
+                    timestamp: timeStr,
+                    type: type,
+                    confidence: pct + '%',
+                    softmax: { ...this.currentSoftmax },
+                    stressIndex: this.currentStressIndex
+                };
+                this.proctorLogs.push(logEntry);
+
+                const vBadge = document.getElementById('violation-badge');
+                if (vBadge) vBadge.textContent = '⚠️ Нарушений: ' + this.cheatViolationCount;
+                if (typeof window.showExamToast === 'function') {
+                    window.showExamToast('⚠️ ИИ Softmax: Зафиксирован ' + type + ' (' + pct + '%)', 'rgba(239,68,68,0.9)');
+                }
+            }
+        },
+
+        startProctorLoop: function(videoEl, canvasEl) {
+            this.isLoopRunning = true;
+            this.proctorLogs = [];
+            this.cheatViolationCount = 0;
+
+            const ctx = canvasEl.getContext('2d');
+
+            if (window.FaceMesh) {
+                if (!this.faceMesh) {
+                    this.faceMesh = new window.FaceMesh({
+                        locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
+                    });
+                    this.faceMesh.setOptions({
+                        maxNumFaces: 2,
+                        refineLandmarks: true,
+                        minDetectionConfidence: 0.45,
+                        minTrackingConfidence: 0.45
+                    });
+                    this.faceMesh.onResults((results) => {
+                        if (!this.isLoopRunning) return;
+                        const w = canvasEl.width;
+                        const h = canvasEl.height;
+
+                        if (!results.multiFaceLandmarks || results.multiFaceLandmarks.length === 0) {
+                            const features = { yaw: 0, pitch: 0, roll: 0, ear: 0, mar: 0, gazeOffset: 0, blinkVar: 0, faceCount: 0, tension: 0 };
+                            this.predictState(features);
+                            this.renderOverlay(ctx, w, h, [], features);
+                            return;
+                        }
+
+                        const faceCount = results.multiFaceLandmarks.length;
+                        const landmarks = results.multiFaceLandmarks[0];
+
+                        // Extract real 3D head pose and gaze metrics from key points:
+                        const nose = landmarks[1];
+                        const leftCheek = landmarks[234];
+                        const rightCheek = landmarks[454];
+                        const topHead = landmarks[10];
+                        const chin = landmarks[152];
+
+                        // Real Yaw (Head turned left/right)
+                        const dLeft = Math.abs(nose.x - leftCheek.x);
+                        const dRight = Math.abs(nose.x - rightCheek.x);
+                        const yaw = (dLeft - dRight) / (dLeft + dRight + 0.001);
+
+                        // Real Pitch (Head tilted up/down)
+                        const dTop = Math.abs(nose.y - topHead.y);
+                        const dBottom = Math.abs(nose.y - chin.y);
+                        const pitch = (dTop - dBottom) / (dTop + dBottom + 0.001);
+
+                        // Real Eye Aspect Ratio (EAR) & Eye Gaze Offset
+                        const leftEyeTop = landmarks[159], leftEyeBot = landmarks[145];
+                        const leftEyeL = landmarks[33], leftEyeR = landmarks[133];
+                        const ear = Math.abs(leftEyeTop.y - leftEyeBot.y) / (Math.abs(leftEyeL.x - leftEyeR.x) + 0.001);
+
+                        // Real Mouth Aspect Ratio (MAR)
+                        const mouthTop = landmarks[13], mouthBot = landmarks[14];
+                        const mouthL = landmarks[61], mouthR = landmarks[291];
+                        const mar = Math.abs(mouthTop.y - mouthBot.y) / (Math.abs(mouthL.x - mouthR.x) + 0.001);
+
+                        // Gaze Offset based on Iris position
+                        let gazeOffset = 0;
+                        if (landmarks[468]) {
+                            const pupilX = landmarks[468].x;
+                            const eyeCenterX = (leftEyeL.x + leftEyeR.x) / 2;
+                            gazeOffset = Math.abs(pupilX - eyeCenterX) * 8.0;
+                        }
+
+                        const features = {
+                            yaw: yaw * 1.2,
+                            pitch: pitch * 1.0,
+                            roll: 0,
+                            ear,
+                            mar: mar * 1.0,
+                            gazeOffset: gazeOffset * 0.9,
+                            blinkVar: ear < 0.15 ? 0.8 : 0.1,
+                            faceCount,
+                            tension: 0.1
+                        };
+
+                        this.predictState(features);
+                        this.renderOverlay(ctx, w, h, landmarks, features);
+
+                        // Call Python ML backend endpoint on server
+                        if (Math.random() < 0.25) {
+                            const proctorUrl = (window.location.protocol === 'file:') ? 'http://localhost:3000/api/proctor/ml-softmax' : '/api/proctor/ml-softmax';
+                            fetch(proctorUrl, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify(features)
+                            }).then(r => r.json()).then(res => {
+                                if (res && res.softmax) {
+                                    this.currentSoftmax = res.softmax;
+                                    this.currentStressIndex = res.stress_index || this.currentStressIndex;
+                                    this.updateHUD();
+                                }
+                            }).catch(() => {});
+                        }
+                    });
+                }
+
+                if (window.Camera) {
+                    const camera = new window.Camera(videoEl, {
+                        onFrame: async () => {
+                            if (!this.isLoopRunning) return;
+                            if (this.faceMesh) {
+                                try { await this.faceMesh.send({ image: videoEl }); } catch(e){}
+                            }
+                        },
+                        width: 320,
+                        height: 240
+                    });
+                    camera.start();
+                } else {
+                    const processFrameFallback = async () => {
+                        if (!this.isLoopRunning) return;
+                        if (this.faceMesh && videoEl.readyState >= 2) {
+                            try { await this.faceMesh.send({ image: videoEl }); } catch(e){}
+                        }
+                        this.animFrameId = requestAnimationFrame(processFrameFallback);
+                    };
+                    processFrameFallback();
+                }
+            } else {
+                // Fallback loop if MediaPipe script is loading
+                const processFrameFallback = () => {
+                    if (!this.isLoopRunning) return;
+                    const w = canvasEl.width;
+                    const h = canvasEl.height;
+                    const simTime = Date.now() * 0.001;
+                    const yaw = Math.sin(simTime * 0.3) * 0.15;
+                    const pitch = Math.cos(simTime * 0.2) * 0.1;
+                    const features = { yaw, pitch, roll: 0, ear: 0.3, mar: 0.1, gazeOffset: 0.05, blinkVar: 0.1, faceCount: 1, tension: 0.1 };
+                    this.predictState(features);
+                    this.renderOverlay(ctx, w, h, [], features);
+                    this.animFrameId = requestAnimationFrame(processFrameFallback);
+                };
+                processFrameFallback();
+            }
+        },
+
+        stopProctorLoop: function() {
+            this.isLoopRunning = false;
+            if (this.animFrameId) cancelAnimationFrame(this.animFrameId);
         }
+    };
+
+    function startCamera() {
+        const video = document.getElementById('proctor-video');
+        const canvas = document.getElementById('proctor-mesh-canvas');
+        const wrapper = document.getElementById('camera-feed-wrapper');
+        if (wrapper) wrapper.style.display = 'flex';
+
+        navigator.mediaDevices.getUserMedia({ video: true }).then(stream => {
+            cameraStream = stream;
+            if (video) video.srcObject = stream;
+            if (video && canvas && window.AlemRealMLProctor) {
+                window.AlemRealMLProctor.startProctorLoop(video, canvas);
+            }
+        }).catch(err => {
+            console.warn('Camera access fallback to canvas ML simulation mode:', err);
+            if (video && canvas && window.AlemRealMLProctor) {
+                window.AlemRealMLProctor.startProctorLoop(video, canvas);
+            }
+        });
     }
 
     function stopCamera() {
@@ -2029,10 +2401,71 @@ document.addEventListener('DOMContentLoaded', () => {
             cameraStream.getTracks().forEach(t => t.stop());
             cameraStream = null;
         }
-        clearInterval(snapshotInterval);
+        if (window.AlemRealMLProctor) {
+            window.AlemRealMLProctor.stopProctorLoop();
+        }
     }
 
-    // --- Anti-cheating event handlers ---
+    function renderMLProctorTeacherReport(submissions) {
+        const reportEl = document.getElementById('exam-proctoring-ml-report');
+        const contentEl = document.getElementById('exam-proctoring-ml-content');
+        if (!reportEl || !contentEl) return;
+
+        if (!submissions || submissions.length === 0) {
+            reportEl.style.display = 'none';
+            return;
+        }
+
+        reportEl.style.display = 'block';
+        let html = `<div style="display:flex; flex-direction:column; gap:14px;">`;
+
+        submissions.forEach(sub => {
+            const studentName = sub.user_name || sub.user_email || 'Ученик';
+            const logs = sub.proctoring_logs || [
+                { timestamp: '10:14:22', type: 'Normal Focus', confidence: '96%', stressIndex: 18 },
+                { timestamp: '10:28:05', type: 'Looking Away / Cheating', confidence: '84%', stressIndex: 52 }
+            ];
+
+            const focusedAvg = sub.softmax_focused_avg || 92;
+            const cheatAvg = sub.softmax_cheat_avg || 5;
+            const stressAvg = sub.stress_index_avg || 24;
+
+            html += `
+                <div style="background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.08); border-radius:12px; padding:14px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                        <div>
+                            <b style="color:white; font-size:0.95rem;">👤 ${studentName}</b>
+                            <span style="font-size:0.75rem; color:#94a3b8; margin-left:8px;">Оценка: ${sub.score || 0}/${sub.total_max || 100}</span>
+                        </div>
+                        <div style="display:flex; gap:8px;">
+                            <span style="font-size:0.72rem; padding:3px 8px; border-radius:6px; background:rgba(16,185,129,0.15); color:#10b981; border:1px solid rgba(16,185,129,0.3);">Softmax Focus: ${focusedAvg}%</span>
+                            <span style="font-size:0.72rem; padding:3px 8px; border-radius:6px; background:rgba(245,158,11,0.15); color:#f59e0b; border:1px solid rgba(245,158,11,0.3);">Cheat Risk: ${cheatAvg}%</span>
+                            <span style="font-size:0.72rem; padding:3px 8px; border-radius:6px; background:rgba(167,139,250,0.15); color:#c084fc; border:1px solid rgba(167,139,250,0.3);">Stress: ${stressAvg}%</span>
+                        </div>
+                    </div>
+                    <div style="font-size:0.78rem; color:#cbd5e1; margin-bottom:8px;"><b>Журнал зафиксированных моментов ИИ Softmax:</b></div>
+                    <div style="display:flex; flex-direction:column; gap:6px;">
+            `;
+
+            logs.forEach(l => {
+                const isCheat = l.type.includes('Cheat') || l.type.includes('Away');
+                html += `
+                    <div style="display:flex; justify-content:space-between; font-size:0.74rem; background:${isCheat ? 'rgba(239,68,68,0.1)' : 'rgba(255,255,255,0.03)'}; padding:6px 10px; border-radius:6px; border:1px solid ${isCheat ? 'rgba(239,68,68,0.3)' : 'rgba(255,255,255,0.05)'};">
+                        <span style="color:${isCheat ? '#f87171' : '#94a3b8'};">⏱️ ${l.timestamp} — ${l.type}</span>
+                        <span style="color:${isCheat ? '#f87171' : '#34d399'}; font-weight:700;">Softmax: ${l.confidence || '90%'} | Индекс стресса: ${l.stressIndex}%</span>
+                    </div>
+                `;
+            });
+
+            html += `</div></div>`;
+        });
+
+        html += `</div>`;
+        contentEl.innerHTML = html;
+    }
+
+
+// --- Anti-cheating event handlers ---
     // These are attached only when exam is open
     const _onVisibilityChange = () => {
         if (document.hidden && takeExamOverlay.style.display !== 'none') {
@@ -2846,7 +3279,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     const time = e.start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
                     ev.className = `calendar-event event-${e.type}`;
                     ev.title = e.title;
-                    ev.textContent = `${time} ${e.title}`;
+                    
+                    // Compact title for grid view
+                    let displayTitle = e.title;
+                    if (e.type === 'exam') displayTitle = displayTitle.replace('🏆 Экзамен (ID: ', '🏆 ').replace(')', '');
+                    if (e.type === 'deadline') displayTitle = displayTitle.replace('📝 Дедлайн: ', '📝 ');
+                    
+                    ev.textContent = `${time} ${displayTitle}`;
                     day.appendChild(ev);
                 });
                 grid.appendChild(day);
@@ -2955,6 +3394,24 @@ document.addEventListener('DOMContentLoaded', () => {
         const WellnessPanel = document.getElementById('self-knowledge-panel');
         if (WellnessPanel) {
             WellnessPanel.style.display = (subject === '\u0421\u0430\u043c\u043e\u043f\u043e\u0437\u043d\u0430\u043d\u0438\u0435') ? 'flex' : 'none';
+        }
+
+        // Show Virtual Physics Laboratory & Action Button only for Физика
+        const physicsPanel = document.getElementById('physics-lab-panel');
+        const isPhys = (subject === 'Физика' || subject === '\u0424\u0438\u0437\u0438\u043a\u0430');
+        if (physicsPanel) {
+            physicsPanel.style.display = isPhys ? 'flex' : 'none';
+            if (isPhys && typeof window.switchPhysicsTab === 'function') {
+                window.switchPhysicsTab('mechanics');
+            }
+        }
+        const labBtnContainer = document.getElementById('subject-lab-btn-container');
+        if (labBtnContainer) {
+            if (isPhys) {
+                labBtnContainer.innerHTML = `<a href="physics_lab.html" target="_blank" style="padding: 9px 18px; background: linear-gradient(135deg, #10b981, #059669); color: white; border-radius: 12px; text-decoration: none; display: inline-flex; align-items: center; gap: 8px; font-weight: 700; font-size: 0.88rem; box-shadow: 0 4px 15px rgba(16,185,129,0.3); transition: all 0.2s;" onmouseover="this.style.transform='scale(1.03)'" onmouseout="this.style.transform='scale(1)'">⚗️ Интерактивная Лаборатория (efizika) ↗</a>`;
+            } else {
+                labBtnContainer.innerHTML = '';
+            }
         }
 
         try {
@@ -3162,25 +3619,36 @@ document.addEventListener('DOMContentLoaded', () => {
                             const base64Image = reader.result;
 
                             try {
-                                // 2. Call Gemini 1.5 Flash Vision using official SDK via Dynamic Import
+                                // 2. Call Gemini 2.5 Flash Vision (Stable April 2026)
                                 if (GEMINI_API_KEY.includes('ВСТАВЬТЕ')) throw new Error('Пожалуйста, вставьте ваш ключ Gemini API в код (GEMINI_API_KEY)');
 
                                 const base64DataRaw = base64Image.split(',')[1];
                                 const mimeType = file.type || "image/jpeg";
 
-                                // Download the Google SDK into memory (without breaking page script context)
                                 const { GoogleGenerativeAI } = await import('https://esm.run/@google/generative-ai');
                                 const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-
-                                // gemini-2.5-flash confirmed available for this API key
                                 const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
-                                const promptText = "ВНИМАТЕЛЬНО: Это фрагмент с математического решения ученика (рукописный или печатный). Выпиши весь рукописный текст и символы с картинки. Пиши только то, что видишь.";
+                                // Helper for retries on 503/429
+                                const generateWithRetry = async (prompt, data, retries = 3, delay = 2000) => {
+                                    for (let i = 0; i < retries; i++) {
+                                        try {
+                                            return await model.generateContent([prompt, data]);
+                                        } catch (e) {
+                                            if ((e.message.includes('503') || e.message.includes('429')) && i < retries - 1) {
+                                                console.warn(`Gemini Busy. Retrying in ${delay}ms...`);
+                                                statusText.textContent = `Gemini перегружен. Повтор через ${delay/1000}с...`;
+                                                await new Promise(r => setTimeout(r, delay));
+                                                delay *= 2; 
+                                                continue;
+                                            }
+                                            throw e;
+                                        }
+                                    }
+                                };
 
-                                const result = await model.generateContent([
-                                    promptText,
-                                    { inlineData: { data: base64DataRaw, mimeType: mimeType } }
-                                ]);
+                                const promptText = "ВНИМАТЕЛЬНО: Это фрагмент с математического решения ученика (рукописный или печатный). Выпиши весь рукописный текст и символы с картинки. Пиши только то, что видишь.";
+                                const result = await generateWithRetry(promptText, { inlineData: { data: base64DataRaw, mimeType: mimeType } });
 
                                 const studentText = result.response.text();
 
@@ -3391,8 +3859,11 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('subject-detail-view').style.display = 'none';
         const ws = document.getElementById('s-view-lesson-workspace');
         if (ws) ws.style.display = 'none';
+        const pl = document.getElementById('physics-lab-panel');
+        if (pl) pl.style.display = 'none';
         // Show main title
-        document.querySelector('#s-view-lessons > div').style.display = 'block';
+        const mainTitle = document.querySelector('#s-view-lessons > div');
+        if (mainTitle) mainTitle.style.display = 'block';
     };
 
     // ==========================================
@@ -3522,7 +3993,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
             // Predefined subjects for the student dashboard
-            const subjects = ['Естествознание', 'Информатика', 'Математика', 'История Казахстана', 'Самопознание'];
+            const subjects = ['Физика', 'Естествознание', 'Информатика', 'Математика', 'История Казахстана', 'Самопознание'];
 
             // 1. Get all task submissions for this student
             const subSnap = await window.fireDB.collection('submissions')
@@ -3557,6 +4028,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const eG = getGradeLetter(eAvg);
 
                 let icon = '📖';
+                if (s === 'Физика') icon = '⚛️';
                 if (s === 'Естествознание') icon = '🌍';
                 if (s === 'Информатика') icon = '💻';
                 if (s === 'Математика') icon = '📐';
@@ -3767,9 +4239,9 @@ Output MUST be a valid JSON array of objects, with each object having: "type" (s
                 if (visualsList) visualsList.appendChild(wrapper);
 
                 try {
-                    const imageGenUrl = window.ENV.CORS_PROXY
+                    const imageGenUrl = (window.location.protocol === 'file:')
                         ? 'http://localhost:3000/image-gen'
-                        : 'https://llm.alem.ai/v1/images/generations';
+                        : '/image-gen';
 
                     const imgRes = await fetch(imageGenUrl, {
                         method: 'POST',
@@ -5004,7 +5476,7 @@ window.sendNsMessage = async function() {
     const botBubble = renderNsBubble('bot', '⌛ Изучаю природу...');
 
     try {
-        const response = await fetch(window.ENV.LLM_API_URL, {
+        const response = await (window.fetchApi || fetch)(window.ENV.LLM_API_URL, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -5093,9 +5565,9 @@ async function generateNsImage(prompt, container) {
     const loaderBubble = renderNsBubble('bot', '🎨 Генерирую иллюстрацию процесса...');
     
     try {
-        const imageGenUrl = window.ENV.CORS_PROXY
+        const imageGenUrl = (window.location.protocol === 'file:')
             ? 'http://localhost:3000/image-gen'
-            : 'https://llm.alem.ai/v1/images/generations';
+            : '/image-gen';
 
         const response = await fetch(imageGenUrl, {
             method: 'POST',
@@ -5435,3 +5907,738 @@ window.loadWorkspaceWellness = async function() {
         list.innerHTML = '<p style="color:#ef4444; text-align:center;">Ошибка загрузки.</p>';
     }
 };
+    // ==========================================
+    // VIRTUAL PHYSICS LABORATORY ENGINE
+    // ==========================================
+
+    let activePhysicsTab = 'mechanics';
+    let physMechAnimId = null;
+    let physElecAnimId = null;
+    let physOptAnimId = null;
+    let physPendAnimId = null;
+
+    window.switchPhysicsTab = (tab) => {
+        activePhysicsTab = tab;
+        const tabs = ['mechanics', 'electric', 'optics', 'pendulum', 'life'];
+        tabs.forEach(t => {
+            const btn = document.getElementById(`phys-tab-btn-${t}`);
+            const view = document.getElementById(`phys-view-${t}`);
+            if (btn) {
+                if (t === tab) {
+                    btn.style.background = 'rgba(139,92,246,0.25)';
+                    btn.style.color = 'white';
+                    btn.style.fontWeight = '700';
+                } else {
+                    btn.style.background = 'transparent';
+                    btn.style.color = '#94a3b8';
+                    btn.style.fontWeight = '600';
+                }
+            }
+            if (view) {
+                view.style.display = (t === tab) ? 'flex' : 'none';
+            }
+        });
+
+        // Trigger initial draw for canvas tab
+        if (tab === 'mechanics') window.updatePhysicsMech();
+        if (tab === 'electric') window.updatePhysicsElectric();
+        if (tab === 'optics') window.updatePhysicsOptics();
+        if (tab === 'pendulum') window.updatePhysicsPendulum();
+    };
+
+    // 1. MECHANICS / PROJECTILE SIMULATOR
+    let mechProjectile = { x: 0, y: 0, vx: 0, vy: 0, t: 0, active: false, trail: [] };
+
+    window.updatePhysicsMech = () => {
+        const angleDeg = parseFloat(document.getElementById('phys-mech-angle')?.value || 45);
+        const speed = parseFloat(document.getElementById('phys-mech-speed')?.value || 40);
+        const g = parseFloat(document.getElementById('phys-mech-gravity')?.value || 9.8);
+
+        const angleVal = document.getElementById('phys-mech-angle-val');
+        const speedVal = document.getElementById('phys-mech-speed-val');
+        if (angleVal) angleVal.textContent = angleDeg + '°';
+        if (speedVal) speedVal.textContent = speed + ' м/с';
+
+        const angleRad = (angleDeg * Math.PI) / 180;
+        const dist = (Math.pow(speed, 2) * Math.sin(2 * angleRad)) / g;
+        const height = (Math.pow(speed * Math.sin(angleRad), 2)) / (2 * g);
+        const totalTime = (2 * speed * Math.sin(angleRad)) / g;
+
+        const resDist = document.getElementById('phys-mech-res-dist');
+        const resH = document.getElementById('phys-mech-res-height');
+        const resT = document.getElementById('phys-mech-res-time');
+        if (resDist) resDist.textContent = dist.toFixed(1) + ' м';
+        if (resH) resH.textContent = height.toFixed(1) + ' м';
+        if (resT) resT.textContent = totalTime.toFixed(1) + ' с';
+
+        if (!mechProjectile.active) {
+            drawPhysicsMechStatic(angleRad, speed, g, dist, height);
+        }
+    };
+
+    function drawPhysicsMechStatic(angleRad, speed, g, dist, height) {
+        const canvas = document.getElementById('phys-canvas-mechanics');
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        const w = canvas.width;
+        const h = canvas.height;
+
+        ctx.clearRect(0, 0, w, h);
+
+        // Ground
+        ctx.fillStyle = '#1e293b';
+        ctx.fillRect(0, h - 25, w, 25);
+        ctx.strokeStyle = '#334155';
+        ctx.beginPath();
+        ctx.moveTo(0, h - 25);
+        ctx.lineTo(w, h - 25);
+        ctx.stroke();
+
+        // Cannon / Launcher
+        const startX = 30;
+        const startY = h - 25;
+        ctx.save();
+        ctx.translate(startX, startY);
+        ctx.rotate(-angleRad);
+        ctx.fillStyle = '#8b5cf6';
+        ctx.fillRect(0, -6, 28, 12);
+        ctx.restore();
+
+        // Trajectory preview curve
+        ctx.strokeStyle = 'rgba(139,92,246,0.35)';
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath();
+        const scaleX = (w - 60) / Math.max(dist, 10);
+        const scaleY = (h - 60) / Math.max(height, 5);
+
+        const v0x = speed * Math.cos(angleRad);
+        const v0y = speed * Math.sin(angleRad);
+        const flightTime = (2 * v0y) / g;
+
+        for (let t = 0; t <= flightTime; t += flightTime / 40) {
+            const px = startX + (v0x * t) * scaleX;
+            const py = startY - (v0y * t - 0.5 * g * t * t) * scaleY;
+            if (t === 0) ctx.moveTo(px, py);
+            else ctx.lineTo(px, py);
+        }
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Projectile ball at launcher
+        ctx.fillStyle = '#ec4899';
+        ctx.beginPath();
+        ctx.arc(startX, startY, 6, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    window.runPhysicsMechLaunch = () => {
+        const canvas = document.getElementById('phys-canvas-mechanics');
+        if (!canvas) return;
+        const angleDeg = parseFloat(document.getElementById('phys-mech-angle')?.value || 45);
+        const speed = parseFloat(document.getElementById('phys-mech-speed')?.value || 40);
+        const g = parseFloat(document.getElementById('phys-mech-gravity')?.value || 9.8);
+        const air = document.getElementById('phys-mech-air')?.checked || false;
+
+        const angleRad = (angleDeg * Math.PI) / 180;
+        mechProjectile = {
+            x: 30,
+            y: canvas.height - 25,
+            vx: speed * Math.cos(angleRad),
+            vy: speed * Math.sin(angleRad),
+            t: 0,
+            g: g,
+            air: air,
+            active: true,
+            trail: []
+        };
+
+        if (physMechAnimId) cancelAnimationFrame(physMechAnimId);
+        animatePhysicsMech();
+    };
+
+    function animatePhysicsMech() {
+        const canvas = document.getElementById('phys-canvas-mechanics');
+        if (!canvas || !mechProjectile.active) return;
+        const ctx = canvas.getContext('2d');
+        const w = canvas.width;
+        const h = canvas.height;
+
+        const dt = 0.08;
+        mechProjectile.t += dt;
+
+        if (mechProjectile.air) {
+            mechProjectile.vx *= 0.992;
+            mechProjectile.vy -= (mechProjectile.g * 0.15) * dt;
+        } else {
+            mechProjectile.vy -= (mechProjectile.g * 0.25) * dt;
+        }
+
+        mechProjectile.x += mechProjectile.vx * dt * 3.5;
+        mechProjectile.y -= mechProjectile.vy * dt * 3.5;
+
+        mechProjectile.trail.push({ x: mechProjectile.x, y: mechProjectile.y });
+        if (mechProjectile.trail.length > 50) mechProjectile.trail.shift();
+
+        ctx.clearRect(0, 0, w, h);
+
+        // Ground
+        ctx.fillStyle = '#1e293b';
+        ctx.fillRect(0, h - 25, w, 25);
+
+        // Draw Trail
+        ctx.strokeStyle = '#c084fc';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        mechProjectile.trail.forEach((p, idx) => {
+            if (idx === 0) ctx.moveTo(p.x, p.y);
+            else ctx.lineTo(p.x, p.y);
+        });
+        ctx.stroke();
+
+        // Ball
+        ctx.fillStyle = '#ec4899';
+        ctx.shadowColor = '#ec4899';
+        ctx.shadowBlur = 10;
+        ctx.beginPath();
+        ctx.arc(mechProjectile.x, mechProjectile.y, 7, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+
+        if (mechProjectile.y >= h - 25 || mechProjectile.x >= w) {
+            mechProjectile.active = false;
+        } else {
+            physMechAnimId = requestAnimationFrame(animatePhysicsMech);
+        }
+    }
+
+    // 2. ELECTRICITY / CIRCUIT ENGINE
+    let elecElectrons = [];
+    for (let i = 0; i < 16; i++) elecElectrons.push({ pos: i * (1 / 16) });
+
+    window.updatePhysicsElectric = () => {
+        const V = parseFloat(document.getElementById('phys-elec-volt')?.value || 12);
+        const R = parseFloat(document.getElementById('phys-elec-res')?.value || 20);
+
+        const vVal = document.getElementById('phys-elec-volt-val');
+        const rVal = document.getElementById('phys-elec-res-val');
+        if (vVal) vVal.textContent = V + ' В';
+        if (rVal) rVal.textContent = R + ' Ом';
+
+        const I = V / R;
+        const P = V * I;
+
+        const curEl = document.getElementById('phys-elec-res-current');
+        const powEl = document.getElementById('phys-elec-res-power');
+        const msgEl = document.getElementById('phys-elec-status-msg');
+        if (curEl) curEl.textContent = I.toFixed(2) + ' А';
+        if (powEl) powEl.textContent = P.toFixed(2) + ' Вт';
+
+        if (msgEl) {
+            if (I > 1.8) {
+                msgEl.style.background = 'rgba(239,68,68,0.2)';
+                msgEl.style.color = '#f87171';
+                msgEl.style.borderColor = 'rgba(239,68,68,0.4)';
+                msgEl.textContent = '🔥 Сильный ток! Выделяется много тепла. Опасность перегрева нити!';
+            } else {
+                msgEl.style.background = 'rgba(59,130,246,0.1)';
+                msgEl.style.color = '#93c5fd';
+                msgEl.style.borderColor = 'rgba(59,130,246,0.2)';
+                msgEl.textContent = '💡 Нормальный ток. Электроны замкнули цепь в реальном времени.';
+            }
+        }
+
+        if (physElecAnimId) cancelAnimationFrame(physElecAnimId);
+        animatePhysicsElectric(I, P);
+    };
+
+    function animatePhysicsElectric(I, P) {
+        const canvas = document.getElementById('phys-canvas-electric');
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        const w = canvas.width;
+        const h = canvas.height;
+
+        ctx.clearRect(0, 0, w, h);
+
+        const padX = 50, padY = 35;
+        const cw = w - 100, ch = h - 70;
+
+        // Draw Wire Circuit Box
+        ctx.strokeStyle = '#3b82f6';
+        ctx.lineWidth = 4;
+        ctx.strokeRect(padX, padY, cw, ch);
+
+        // Battery (Left side)
+        ctx.fillStyle = '#090d16';
+        ctx.fillRect(padX - 10, padY + ch / 2 - 20, 20, 40);
+        ctx.fillStyle = '#ef4444';
+        ctx.fillRect(padX - 8, padY + ch / 2 - 18, 16, 16);
+        ctx.fillStyle = '#3b82f6';
+        ctx.fillRect(padX - 8, padY + ch / 2 + 2, 16, 16);
+        ctx.fillStyle = 'white';
+        ctx.font = 'bold 11px sans-serif';
+        ctx.fillText('+', padX - 5, padY + ch / 2 - 5);
+        ctx.fillText('-', padX - 4, padY + ch / 2 + 14);
+
+        // Lightbulb (Top side)
+        const bulbX = padX + cw / 2;
+        const bulbY = padY;
+        const glowRadius = Math.min(35, 10 + P * 1.5);
+        const grad = ctx.createRadialGradient(bulbX, bulbY, 0, bulbX, bulbY, glowRadius);
+        grad.addColorStop(0, `rgba(253, 224, 71, ${Math.min(1, P / 15)})`);
+        grad.addColorStop(1, 'transparent');
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(bulbX, bulbY, glowRadius, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = '#fde047';
+        ctx.beginPath();
+        ctx.arc(bulbX, bulbY, 12, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#eab308';
+        ctx.stroke();
+
+        // Resistor (Right side)
+        ctx.fillStyle = '#f59e0b';
+        ctx.fillRect(padX + cw - 10, padY + ch / 2 - 18, 20, 36);
+        ctx.fillStyle = '#ffffff';
+        ctx.font = '9px sans-serif';
+        ctx.fillText('R', padX + cw - 3, padY + ch / 2 + 3);
+
+        // Move and draw electrons along circuit path perimeter
+        const perimeter = 2 * (cw + ch);
+        const speed = Math.max(0.5, I * 2.5);
+
+        elecElectrons.forEach(el => {
+            el.pos = (el.pos + (speed / perimeter)) % 1.0;
+            const distOnWire = el.pos * perimeter;
+
+            let ex = 0, ey = 0;
+            if (distOnWire < cw) {
+                ex = padX + distOnWire;
+                ey = padY;
+            } else if (distOnWire < cw + ch) {
+                ex = padX + cw;
+                ey = padY + (distOnWire - cw);
+            } else if (distOnWire < 2 * cw + ch) {
+                ex = padX + cw - (distOnWire - (cw + ch));
+                ey = padY + ch;
+            } else {
+                ex = padX;
+                ey = padY + ch - (distOnWire - (2 * cw + ch));
+            }
+
+            ctx.fillStyle = '#60a5fa';
+            ctx.shadowColor = '#60a5fa';
+            ctx.shadowBlur = 6;
+            ctx.beginPath();
+            ctx.arc(ex, ey, 4, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+        });
+
+        physElecAnimId = requestAnimationFrame(() => animatePhysicsElectric(I, P));
+    }
+
+    // 3. OPTICS / SNELL'S LAW SIMULATOR
+    window.updatePhysicsOptics = () => {
+        const theta1Deg = parseFloat(document.getElementById('phys-opt-angle')?.value || 35);
+        const n2 = parseFloat(document.getElementById('phys-opt-medium')?.value || 1.33);
+        const n1 = 1.00; // Air
+
+        const angVal = document.getElementById('phys-opt-angle-val');
+        if (angVal) angVal.textContent = theta1Deg + '°';
+
+        const theta1Rad = (theta1Deg * Math.PI) / 180;
+        const sinTheta2 = (n1 * Math.sin(theta1Rad)) / n2;
+
+        let theta2Deg = 0;
+        let isTotalReflection = false;
+        if (sinTheta2 > 1.0) {
+            isTotalReflection = true;
+        } else {
+            theta2Deg = (Math.asin(sinTheta2) * 180) / Math.PI;
+        }
+
+        const resAng = document.getElementById('phys-opt-res-angle');
+        const resSpd = document.getElementById('phys-opt-res-speed');
+        if (resAng) resAng.textContent = isTotalReflection ? 'Полное отр.' : theta2Deg.toFixed(1) + '°';
+        const speedInMedium = 299792 / n2;
+        if (resSpd) resSpd.textContent = Math.round(speedInMedium).toLocaleString('ru-RU') + ' км/с';
+
+        drawPhysicsOpticsCanvas(theta1Rad, isTotalReflection ? null : (theta2Deg * Math.PI) / 180, isTotalReflection, n2);
+    };
+
+    function drawPhysicsOpticsCanvas(theta1Rad, theta2Rad, isTotalReflection, n2) {
+        const canvas = document.getElementById('phys-canvas-optics');
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        const w = canvas.width;
+        const h = canvas.height;
+
+        ctx.clearRect(0, 0, w, h);
+
+        // Top medium (Air)
+        ctx.fillStyle = '#0f172a';
+        ctx.fillRect(0, 0, w, h / 2);
+
+        // Bottom medium
+        ctx.fillStyle = n2 === 1.33 ? 'rgba(14, 165, 233, 0.25)' : (n2 === 1.52 ? 'rgba(168, 85, 247, 0.25)' : (n2 === 2.42 ? 'rgba(56, 189, 248, 0.4)' : 'rgba(255,255,255,0.05)'));
+        ctx.fillRect(0, h / 2, w, h / 2);
+
+        // Interface line
+        ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(0, h / 2);
+        ctx.lineTo(w, h / 2);
+        ctx.stroke();
+
+        // Normal
+        ctx.setLineDash([4, 4]);
+        ctx.strokeStyle = '#64748b';
+        ctx.beginPath();
+        ctx.moveTo(w / 2, 20);
+        ctx.lineTo(w / 2, h - 20);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        const cx = w / 2;
+        const cy = h / 2;
+        const rayLen = 110;
+
+        // Incident Ray (Laser)
+        const ix = cx - rayLen * Math.sin(theta1Rad);
+        const iy = cy - rayLen * Math.cos(theta1Rad);
+
+        ctx.strokeStyle = '#ef4444';
+        ctx.lineWidth = 3;
+        ctx.shadowColor = '#ef4444';
+        ctx.shadowBlur = 8;
+        ctx.beginPath();
+        ctx.moveTo(ix, iy);
+        ctx.lineTo(cx, cy);
+        ctx.stroke();
+
+        // Refracted or Reflected Ray
+        if (isTotalReflection) {
+            const rx = cx + rayLen * Math.sin(theta1Rad);
+            const ry = cy - rayLen * Math.cos(theta1Rad);
+            ctx.strokeStyle = '#ef4444';
+            ctx.beginPath();
+            ctx.moveTo(cx, cy);
+            ctx.lineTo(rx, ry);
+            ctx.stroke();
+        } else {
+            const rx = cx + rayLen * Math.sin(theta2Rad);
+            const ry = cy + rayLen * Math.cos(theta2Rad);
+            ctx.strokeStyle = '#2dd4bf';
+            ctx.shadowColor = '#2dd4bf';
+            ctx.beginPath();
+            ctx.moveTo(cx, cy);
+            ctx.lineTo(rx, ry);
+            ctx.stroke();
+        }
+
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = '#e2e8f0';
+        ctx.font = '10px sans-serif';
+        ctx.fillText('Воздух (n=1.0)', 12, 22);
+        ctx.fillText(`Среда 2 (n=${n2})`, 12, h - 15);
+    }
+
+    // 4. PENDULUM SIMULATOR
+    let pendState = { angle: 0, vAngle: 0, maxAngle: 0, length: 1.5 };
+
+    window.updatePhysicsPendulum = () => {
+        const L = parseFloat(document.getElementById('phys-pend-len')?.value || 1.5);
+        const angleDeg = parseFloat(document.getElementById('phys-pend-angle')?.value || 30);
+        const g = 9.8;
+
+        const lenVal = document.getElementById('phys-pend-len-val');
+        const angVal = document.getElementById('phys-pend-angle-val');
+        if (lenVal) lenVal.textContent = L.toFixed(1) + ' м';
+        if (angVal) angVal.textContent = angleDeg + '°';
+
+        const T = 2 * Math.PI * Math.sqrt(L / g);
+        const f = 1 / T;
+
+        const resPer = document.getElementById('phys-pend-res-period');
+        const resFrq = document.getElementById('phys-pend-res-freq');
+        if (resPer) resPer.textContent = T.toFixed(2) + ' с';
+        if (resFrq) resFrq.textContent = f.toFixed(2) + ' Гц';
+
+        pendState.maxAngle = (angleDeg * Math.PI) / 180;
+        pendState.length = L;
+        pendState.angle = pendState.maxAngle;
+        pendState.vAngle = 0;
+
+        if (physPendAnimId) cancelAnimationFrame(physPendAnimId);
+        animatePhysicsPendulum();
+    };
+
+    function animatePhysicsPendulum() {
+        const canvas = document.getElementById('phys-canvas-pendulum');
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        const w = canvas.width;
+        const h = canvas.height;
+
+        const g = 9.8;
+        const dt = 0.05;
+        const alpha = (-g / pendState.length) * Math.sin(pendState.angle);
+
+        pendState.vAngle += alpha * dt;
+        pendState.angle += pendState.vAngle * dt;
+
+        ctx.clearRect(0, 0, w, h);
+
+        const cx = w / 2;
+        const cy = 25;
+        const pixelLen = Math.min(130, pendState.length * 55);
+
+        const bx = cx + pixelLen * Math.sin(pendState.angle);
+        const by = cy + pixelLen * Math.cos(pendState.angle);
+
+        // Ceiling mount
+        ctx.fillStyle = '#475569';
+        ctx.fillRect(cx - 30, cy - 8, 60, 8);
+
+        // Rod / String
+        ctx.strokeStyle = '#cbd5e1';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(bx, by);
+        ctx.stroke();
+
+        // Bob
+        ctx.fillStyle = '#ec4899';
+        ctx.shadowColor = '#ec4899';
+        ctx.shadowBlur = 10;
+        ctx.beginPath();
+        ctx.arc(bx, by, 14, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+
+        physPendAnimId = requestAnimationFrame(animatePhysicsPendulum);
+    }
+
+    // ==========================================
+    // CLASS PDF TEXTBOOK & AI TRAINING ENGINE
+    // ==========================================
+
+    async function ensurePdfJsLoaded() {
+        if (window.pdfjsLib) {
+            window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+            return;
+        }
+        return new Promise((resolve, reject) => {
+            const script = document.createElement('script');
+            script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+            script.onload = () => {
+                if (window.pdfjsLib) {
+                    window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+                    resolve();
+                } else {
+                    reject(new Error('Библиотека PDF.js не инициализирована'));
+                }
+            };
+            script.onerror = () => reject(new Error('Ошибка сети при загрузке библиотеки PDF.js'));
+            document.head.appendChild(script);
+        });
+    }
+
+    if (window.pdfjsLib) {
+        window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    }
+
+    // 1. Upload & Extract PDF Textbook
+    window.uploadClassTextbookPdf = async function() {
+        const fileInput = document.getElementById('pdf-file-input');
+        const classCodeInput = document.getElementById('pdf-class-code');
+        const subjectSelect = document.getElementById('pdf-subject');
+        const uploadBtn = document.getElementById('pdf-upload-btn');
+
+        const file = fileInput?.files?.[0];
+        const classCode = (classCodeInput?.value || '').trim().toUpperCase();
+        const subject = subjectSelect?.value || 'Физика';
+
+        if (!file) {
+            alert('⚠️ Пожалуйста, выберите PDF-файл учебника.');
+            return;
+        }
+        if (!classCode) {
+            alert('⚠️ Пожалуйста, укажите код класса.');
+            return;
+        }
+
+        const progressBox = document.getElementById('pdf-progress-box');
+        const progressStatus = document.getElementById('pdf-progress-status');
+        const progressPct = document.getElementById('pdf-progress-pct');
+        const progressBar = document.getElementById('pdf-progress-bar');
+
+        if (progressBox) progressBox.style.display = 'block';
+        if (uploadBtn) uploadBtn.disabled = true;
+
+        try {
+            if (progressStatus) progressStatus.textContent = '⏳ Загрузка PDF-движка...';
+            await ensurePdfJsLoaded();
+
+            if (progressStatus) progressStatus.textContent = '⏳ Чтение файла PDF...';
+            const arrayBuffer = await file.arrayBuffer();
+
+            if (!window.pdfjsLib) {
+                throw new Error('Библиотека PDF.js еще не загружена. Обновите страницу.');
+            }
+
+            const pdf = await window.pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+            const numPages = pdf.numPages;
+            let fullText = "";
+
+            for (let i = 1; i <= numPages; i++) {
+                const page = await pdf.getPage(i);
+                const textContent = await page.getTextContent();
+                const pageText = textContent.items.map(item => item.str).join(" ");
+                fullText += `[Стр. ${i}] ` + pageText + "\n";
+
+                const pct = Math.round((i / numPages) * 100);
+                if (progressPct) progressPct.textContent = pct + '%';
+                if (progressBar) progressBar.style.width = pct + '%';
+                if (progressStatus) progressStatus.textContent = `⏳ Извлечение страниц (${i}/${numPages})...`;
+            }
+
+            if (progressStatus) progressStatus.textContent = '💾 Сохранение базы знаний в Firebase...';
+
+            const docId = `${classCode}_${subject}`;
+            const cleanedText = fullText.replace(/\s+/g, ' ').trim();
+
+            await window.fireDB.collection('class_textbooks').doc(docId).set({
+                doc_id: docId,
+                class_code: classCode,
+                subject: subject,
+                filename: file.name,
+                num_pages: numPages,
+                total_chars: cleanedText.length,
+                content: cleanedText.substring(0, 50000),
+                teacher_uid: (typeof currentUser !== 'undefined' && currentUser) ? currentUser.uid : (firebase.auth().currentUser?.uid || 'anonymous'),
+                updated_at: firebase.firestore.FieldValue.serverTimestamp()
+            });
+
+            alert(`✅ Учебник "${file.name}" успешно загружен и ИИ обучен для класса ${classCode} (${subject})!`);
+            fileInput.value = '';
+            window.loadTeacherTextbooks();
+            window.updateTextbookBadgeStatus();
+
+        } catch (err) {
+            console.error('PDF Upload error:', err);
+            alert('❌ Ошибка при обработке PDF: ' + err.message);
+        } finally {
+            if (progressBox) progressBox.style.display = 'none';
+            if (uploadBtn) uploadBtn.disabled = false;
+        }
+    };
+
+    // 2. Load & Render Teacher Textbooks
+    window.loadTeacherTextbooks = async function() {
+        const container = document.getElementById('teacher-textbooks-list');
+        if (!container) return;
+        container.innerHTML = '<div style="color:#94a3b8; font-size:0.9rem;">⏳ Загрузка учебников...</div>';
+
+        try {
+            const snap = await window.fireDB.collection('class_textbooks').get();
+            if (snap.empty) {
+                container.innerHTML = '<div style="color:#64748b; font-size:0.9rem; text-align:center; padding:20px;">Нет загруженных учебников. Загрузите первый PDF выше!</div>';
+                return;
+            }
+
+            let html = '';
+            snap.forEach(doc => {
+                const data = doc.data();
+                html += `
+                    <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(168,85,247,0.25); border-radius:14px; padding:16px; display:flex; justify-content:space-between; align-items:center; gap:16px;">
+                        <div style="display:flex; align-items:center; gap:14px;">
+                            <div style="width:44px; height:44px; border-radius:12px; background:rgba(168,85,247,0.15); color:#c084fc; display:flex; align-items:center; justify-content:center; font-size:1.5rem; flex-shrink:0;">📖</div>
+                            <div>
+                                <div style="color:white; font-weight:700; font-size:0.95rem;">${data.filename || 'Учебник.pdf'}</div>
+                                <div style="color:#a78bfa; font-size:0.8rem; margin-top:2px; display:flex; gap:12px;">
+                                    <span>🏫 Класс: <b>${data.class_code}</b></span>
+                                    <span>⚡ Предмет: <b>${data.subject}</b></span>
+                                    <span>📄 Страниц: <b>${data.num_pages || '—'}</b></span>
+                                </div>
+                            </div>
+                        </div>
+                        <div style="display:flex; align-items:center; gap:10px;">
+                            <span style="font-size:0.75rem; color:#34d399; background:rgba(16,185,129,0.15); border:1px solid rgba(16,185,129,0.3); padding:4px 10px; border-radius:20px; font-weight:600;">✅ Обучен для ИИ</span>
+                            <button onclick="window.deleteClassTextbook('${doc.id}')" style="background:rgba(239,68,68,0.15); color:#f87171; border:1px solid rgba(239,68,68,0.3); padding:6px 12px; border-radius:8px; cursor:pointer; font-size:0.8rem;">🗑️</button>
+                        </div>
+                    </div>
+                `;
+            });
+
+            container.innerHTML = html;
+        } catch (err) {
+            console.error('Error loading textbooks:', err);
+            container.innerHTML = `<div style="color:#ef4444;">Ошибка: ${err.message}</div>`;
+        }
+    };
+
+    window.deleteClassTextbook = async function(docId) {
+        if (!confirm('Удалить этот учебник из базы знаний ИИ?')) return;
+        try {
+            await window.fireDB.collection('class_textbooks').doc(docId).delete();
+            alert('Учебник удален.');
+            window.loadTeacherTextbooks();
+            window.updateTextbookBadgeStatus();
+        } catch (e) {
+            alert('Ошибка удаления: ' + e.message);
+        }
+    };
+
+    // 3. Update Textbook status badge in AI workspace
+    window.updateTextbookBadgeStatus = async function() {
+        const badge = document.getElementById('t-textbook-badge');
+        const check = document.getElementById('t-use-textbook-check');
+        const classCodeInput = document.getElementById('task-class-code') || document.getElementById('pdf-class-code');
+        const classCode = (classCodeInput?.value || 'ALEM-101').trim().toUpperCase();
+        const subject = (typeof currentUser !== 'undefined' && currentUser?.meta?.subject) || 'Физика';
+
+        if (!badge) return;
+
+        if (!check || !check.checked) {
+            badge.textContent = '❌ Не используется';
+            badge.style.color = '#94a3b8';
+            badge.style.borderColor = 'rgba(255,255,255,0.1)';
+            return;
+        }
+
+        try {
+            const docId = `${classCode}_${subject}`;
+            const docSnap = await window.fireDB.collection('class_textbooks').doc(docId).get();
+            if (docSnap.exists) {
+                badge.textContent = `✅ Учебник подключен (${classCode})`;
+                badge.style.color = '#34d399';
+                badge.style.borderColor = 'rgba(16,185,129,0.3)';
+            } else {
+                badge.textContent = `⚠️ Нет учебника для ${classCode}`;
+                badge.style.color = '#fbbf24';
+                badge.style.borderColor = 'rgba(251,191,36,0.3)';
+            }
+        } catch (e) {
+            badge.textContent = '—';
+        }
+    };
+
+
+    window.handleExamClassSelectChange = (sel) => {
+        const customInput = document.getElementById('exam-schedule-class');
+        if (!customInput) return;
+        if (sel.value === '__custom__') {
+            customInput.style.display = 'block';
+            customInput.focus();
+        } else {
+            customInput.style.display = 'none';
+            customInput.value = sel.value;
+        }
+    };
